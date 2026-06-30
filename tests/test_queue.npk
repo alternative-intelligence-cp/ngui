@@ -1,0 +1,18 @@
+use "event/queue.npk".*;
+
+pub func:main = int32() {
+    MPSCQueue->:q = raw mpsc_create(16i64);
+    
+    bool:pushed = raw mpsc_push(q, 42i64);
+    if (!pushed) { exit(1i32); }
+    
+    int64:val = raw mpsc_pop(q);
+    if (val != 42i64) { exit(2i32); }
+    
+    raw mpsc_destroy(q);
+    exit(0i32);
+};
+
+func:failsafe = int32(tbb32:err) {
+    exit(1i32);
+};

@@ -1,0 +1,64 @@
+use "atomic.npk".*;
+
+// A simple lock-free / wait-free bounded MPSC queue.
+pub struct:MPSCQueue = {
+    int64: capacity;
+    AtomicInt64: head;
+    AtomicInt64: tail;
+    int64->: items;
+};
+
+pub func:mpsc_create = MPSCQueue->(int64:cap) {
+    wild int64->: buf = alloc(cap * 8i64) => int64->;
+    wild MPSCQueue->: q = alloc(@sizeof(MPSCQueue)) => MPSCQueue->;
+    
+    q->capacity = cap;
+    q->items = buf;
+    
+    q->head = raw AtomicInt64.create(0i64);
+    q->tail = raw AtomicInt64.create(0i64);
+    
+    pass(q);
+};
+
+// Producer: Wait-free enqueue
+pub func:mpsc_push = bool(MPSCQueue->:q, int64:data) {
+    int64:curr_head = raw AtomicInt64.load(q->head, 5i32);
+    int64:curr_tail = raw AtomicInt64.load(q->tail, 5i32);
+    
+    // Very naive check for full queue
+    if (curr_head - curr_tail >= q->capacity) {
+        pass(false);
+    }
+    
+    // Atomically claim a slot
+    int64:slot = raw AtomicInt64.add(q->head, 1i64, 5i32);
+    
+    int64:index = slot % q->capacity;
+    q->items[index] = data;
+    pass(true);
+};
+
+// Consumer: Single consumer, lock-free dequeue
+pub func:mpsc_pop = int64(MPSCQueue->:q) {
+    int64:curr_head = raw AtomicInt64.load(q->head, 5i32);
+    int64:curr_tail = raw AtomicInt64.load(q->tail, 5i32);
+    
+    if (curr_tail >= curr_head) {
+        pass(0i64); // empty, assuming 0 is no event
+    }
+    
+    int64:index = curr_tail % q->capacity;
+    int64:data = q->items[index];
+    raw AtomicInt64.store(q->tail, curr_tail + 1i64, 5i32);
+    
+    pass(data);
+};
+
+pub func:mpsc_destroy = NIL(MPSCQueue->:q) {
+    raw AtomicInt64.destroy(q->head);
+    raw AtomicInt64.destroy(q->tail);
+    free(q->items);
+    free(q);
+    pass(NIL);
+};

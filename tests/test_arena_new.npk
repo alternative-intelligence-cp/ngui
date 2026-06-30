@@ -1,0 +1,31 @@
+use "handle.npk".*;
+use "core/widget.npk".*;
+
+pub func:main = int32() {
+    // Create Arena
+    int64:arena = raw HandleArena.create();
+    
+    // Create Widget
+    int64:h_raw = raw HandleArena.alloc(arena, @sizeof(Widget));
+    Handle<Widget>:h = @cast_unchecked<Handle<Widget> >(h_raw);
+    
+    int64:p = raw HandleArena.deref(h_raw);
+    Widget->:w = @cast_unchecked<Widget-> >(p);
+    
+    raw widget_init(w);
+    
+    // Add child (just use itself to test the list)
+    raw widget_add_child(w, h);
+    raw widget_remove_child(w, h);
+    
+    raw widget_destroy(w);
+    
+    raw HandleArena.free(h_raw);
+    raw HandleArena.destroy(arena);
+    
+    exit(0i32);
+};
+
+func:failsafe = int32(tbb32:err) {
+    exit(1i32);
+};

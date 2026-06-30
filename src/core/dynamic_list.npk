@@ -1,0 +1,63 @@
+use "handle.npk".*;
+
+pub struct:DynamicList<T> = {
+    int64:capacity;
+    int64:count;
+    T->:items;
+};
+
+pub func:dlist_create<T> = DynamicList<T>->(int64:initial_capacity) {
+    int64:cap = initial_capacity;
+    if (cap <= 0i64) {
+        cap = 4i64;
+    }
+    wild T->:items_ptr = alloc(cap * @sizeof(T)) => T->;
+    wild DynamicList<T>->:list = alloc(24i64) => DynamicList<T>->;
+    list->capacity = cap;
+    list->count = 0i64;
+    list->items = items_ptr;
+    pass(list);
+};
+
+pub func:dlist_get<T> = T(DynamicList<T>->:list, int64:index) {
+    if (index < 0i64 || index >= list->count) {
+        fail(-1i32);
+    }
+    T->:ptr = list->items;
+    pass(ptr[index]);
+};
+
+pub func:dlist_push<T> = NIL(DynamicList<T>->:list, T:item) {
+    if (list->count >= list->capacity) {
+        int64:new_cap = list->capacity * 2i64;
+        wild T->:new_items = ralloc(list->items, new_cap * @sizeof(T)) => T->;
+        list->capacity = new_cap;
+        list->items = new_items;
+    }
+    T->:ptr = list->items;
+    ptr[list->count] = item;
+    list->count = list->count + 1i64;
+    pass(NIL);
+};
+
+pub func:dlist_remove<T> = NIL(DynamicList<T>->:list, int64:index) {
+    if (index < 0i64 || index >= list->count) {
+        fail(-1i32);
+    }
+    int64:i = index;
+    T->:ptr = list->items;
+    while (i < list->count - 1i64) {
+        ptr[i] = ptr[i + 1i64];
+        i = i + 1i64;
+    }
+    list->count = list->count - 1i64;
+    pass(NIL);
+};
+
+pub func:dlist_destroy<T> = NIL(DynamicList<T>->:list) {
+    if (list->items != NULL) {
+        free(list->items);
+    }
+    free(list);
+    pass(NIL);
+};

@@ -1,8 +1,57 @@
-use "ngui_arena.npk".*;
-use "/home/randy/Workspace/REPOS/nitpick-packages/packages/nitpick-list/src/doubly.npk".*;
-
+use "handle.npk".*;
 use "../layout/math.npk".*;
 use "a11y.npk".*;
+
+pub struct:ChildList = {
+    int64:capacity;
+    int64:count;
+    Handle<Widget>->:items;
+};
+
+pub func:child_list_create = ChildList->(int64:initial_capacity) {
+    int64:cap = initial_capacity;
+    if (cap <= 0i64) { cap = 4i64; }
+    
+    wild Handle<Widget>->:items_ptr = alloc(cap * 8i64) => Handle<Widget>->;
+    wild ChildList->:list = alloc(24i64) => ChildList->;
+    list->capacity = cap;
+    list->count = 0i64;
+    list->items = items_ptr;
+    pass(list);
+};
+
+pub func:child_list_push = NIL(ChildList->:list, Handle<Widget>:item) {
+    if (list->count >= list->capacity) {
+        int64:new_cap = list->capacity * 2i64;
+        wild Handle<Widget>->:new_items = ralloc(list->items, new_cap * 8i64) => Handle<Widget>->;
+        list->capacity = new_cap;
+        list->items = new_items;
+    }
+    Handle<Widget>->:ptr = list->items;
+    ptr[list->count] = item;
+    list->count = list->count + 1i64;
+    pass(NIL);
+};
+
+pub func:child_list_remove = NIL(ChildList->:list, int64:index) {
+    if (index < 0i64 || index >= list->count) { fail(-1i32); }
+    int64:i = index;
+    Handle<Widget>->:ptr = list->items;
+    while (i < list->count - 1i64) {
+        ptr[i] = ptr[i + 1i64];
+        i = i + 1i64;
+    }
+    list->count = list->count - 1i64;
+    pass(NIL);
+};
+
+pub func:child_list_destroy = NIL(ChildList->:list) {
+    if (list->items != NULL) {
+        free(list->items);
+    }
+    free(list);
+    pass(NIL);
+};
 
 pub struct:Widget = {
     string:tag_name;
@@ -11,19 +60,15 @@ pub struct:Widget = {
     LayoutUnit:y;
     LayoutUnit:width;
     LayoutUnit:height;
-    int64:children_list; // DList handle holding packed MyHandle (int64)
+    ChildList->:children;
 };
 
-pub func:widget_create = Widget->() {
-    int64:dlist_ptr = raw DList.create();
-    wild Widget->:w = alloc(136i64) => Widget->;
+pub func:widget_init = NIL(Widget->:w) {
+    fix256:zero = 0;
+    fix256:hundred = 100;
     
-    // We cannot do w->x = 0i32, we must assign LayoutUnit
-    fix256: zero = 0;
-    fix256: hundred = 100;
-    
-    LayoutUnit: z_unit; z_unit.val = zero;
-    LayoutUnit: h_unit; h_unit.val = hundred;
+    LayoutUnit:z_unit; z_unit.val = zero;
+    LayoutUnit:h_unit; h_unit.val = hundred;
     
     w->tag_name = "";
     w->id = "";
@@ -31,38 +76,51 @@ pub func:widget_create = Widget->() {
     w->y = z_unit;
     w->width = h_unit;
     w->height = h_unit;
-    w->children_list = dlist_ptr;
-    pass w;
+    w->children = raw child_list_create(4i64);
+    pass(NIL);
 };
 
-pub func:widget_destroy = int32(Widget->:w) {
-    if (w->children_list != 0i64) {
-        int32:res = raw DList.destroy(w->children_list);
+pub func:widget_add_child = NIL(Widget->:parent, Handle<Widget>:child_handle) {
+    raw child_list_push(parent->children, child_handle);
+    pass(NIL);
+};
+
+pub func:widget_remove_child = NIL(Widget->:parent, Handle<Widget>:child_handle) {
+    ChildList->:list = parent->children;
+    Handle<Widget>->:ptr = list->items;
+    int64:i = 0i64;
+    bool:found = false;
+    
+    while (i < list->count) {
+        if (ptr[i] == child_handle) {
+            found = true;
+            break;
+        }
+        i = i + 1i64;
     }
-    pass 0i32;
+    
+    if (found) {
+        raw child_list_remove(list, i);
+    }
+    pass(NIL);
 };
 
-pub func:widget_add_child = int32(Widget->:parent, MyHandle:child_handle) {
-    int64:pack = raw my_handle_pack(child_handle);
-    int32:res = raw DList.push_back(parent->children_list, pack);
-    pass res;
+pub func:widget_destroy = NIL(Widget->:w) {
+    if (w->children != NULL) {
+        raw child_list_destroy(w->children);
+        w->children = NULL;
+    }
+    pass(NIL);
 };
 
-pub func:widget_remove_child = int32(Widget->:parent, MyHandle:child_handle) {
-    int64:pack = raw my_handle_pack(child_handle);
-    int32:res = raw DList.remove_first(parent->children_list, pack);
-    pass res;
-};
-
-pub func:widget_get_role = int32(any->: self_any) {
+pub func:widget_get_role = int32(Widget->:self_ptr) {
     pass(A11Y_ROLE_APPLICATION);
 };
 
-pub func:widget_get_name = string(any->: self_any) {
+pub func:widget_get_name = string(Widget->:self_ptr) {
     pass("Widget\0");
 };
 
-pub func:widget_get_state = uint64(any->: self_any) {
+pub func:widget_get_state = uint64(Widget->:self_ptr) {
     pass(A11Y_STATE_ENABLED | A11Y_STATE_VISIBLE);
 };
-
