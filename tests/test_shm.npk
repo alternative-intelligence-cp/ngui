@@ -1,0 +1,18 @@
+use "../src/render/software/shm.npk".*;
+
+pub func:failsafe = int32(tbb32:err) { exit(1i32); };
+pub func:main = int32() {
+    int64: fd_ptr = @cast_unchecked<int64>(alloc(4i64));
+    defer { free(@cast_unchecked<int8->>(fd_ptr)); }
+    
+    int64: size = 4096i64;
+    int64: addr = raw shm_allocate_buffer(@cast_unchecked<uint64>(size), fd_ptr);
+    if (addr < 0i64) {
+        exit(1i32);
+    }
+    
+    int32: fd = (@cast_unchecked<int32->>(fd_ptr))[0];
+    raw shm_free_buffer(addr, @cast_unchecked<uint64>(size), fd);
+    
+    exit(0i32);
+};

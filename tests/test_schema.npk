@@ -1,0 +1,6 @@
+pub func:failsafe = int32(tbb32:err) { exit(1i32); };
+use "../src/markup/schema.npk".*;
+pub func:main = int32() {
+    int64: g = raw ngui_markup_parser_create();
+    exit(0i32);
+};

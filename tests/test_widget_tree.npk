@@ -1,0 +1,66 @@
+use "../src/core/ngui_arena.npk".*;
+use "../src/core/widget.npk".*;
+use "/home/randy/Workspace/REPOS/nitpick-packages/packages/nitpick-list/src/doubly.npk".*;
+
+pub func:main = int32() {
+    // 1. Create the arena
+    Arena->:arena = raw my_arena_create(100i64);
+    
+    // 2. Create parent widget
+    Widget->:parent_widget = raw widget_create();
+    any->:parent_any = parent_widget => any->;
+    MyHandle:parent_handle = raw ngui_arena_alloc(arena, parent_any);
+    
+    // 3. Create child widgets
+    Widget->:child1 = raw widget_create();
+    any->:child1_any = child1 => any->;
+    MyHandle:h1 = raw ngui_arena_alloc(arena, child1_any);
+    
+    Widget->:child2 = raw widget_create();
+    any->:child2_any = child2 => any->;
+    MyHandle:h2 = raw ngui_arena_alloc(arena, child2_any);
+    
+    // 4. Add children to parent
+    int32:res1 = raw widget_add_child(parent_widget, h1);
+    if (res1 != 0i32) { exit(1i32); }
+    
+    int32:res2 = raw widget_add_child(parent_widget, h2);
+    if (res2 != 0i32) { exit(2i32); }
+    
+    // 5. Verify children list size
+    int64:len = raw DList.len(parent_widget->children_list);
+    if (len != 2i64) { exit(3i32); }
+    
+    // 6. Remove first child
+    int32:res3 = raw widget_remove_child(parent_widget, h1);
+    if (res3 != 0i32) { exit(4i32); }
+    
+    int64:len2 = raw DList.len(parent_widget->children_list);
+    if (len2 != 1i64) { exit(5i32); }
+    
+    // 7. Verify the remaining child is h2
+    int64:peek = raw DList.peek_front(parent_widget->children_list);
+    MyHandle:peek_handle = raw my_handle_unpack(peek);
+    if (peek_handle.index != h2.index) { exit(6i32); }
+    if (peek_handle.generation != h2.generation) { exit(7i32); }
+    
+    // 8. Cleanup
+    int32:cd1 = raw widget_destroy(child1);
+    int32:cd2 = raw widget_destroy(child2);
+    int32:pd = raw widget_destroy(parent_widget);
+    
+    // Wait, arena destroys all memory anyway? No, arena destroys items array, but the widgets themselves were dynamically allocated via raw widget_create() (which uses alloc)
+    // Wait, arena items are pointers! We need to free the widgets themselves!
+    // But widget_destroy just destroys the list, it doesn't free the widget struct itself.
+    free(child1);
+    free(child2);
+    free(parent_widget);
+    
+    int64:ad = raw ngui_arena_destroy(arena);
+    
+    exit(0i32);
+};
+
+func:failsafe = int32(tbb32:err_code) {
+    exit(err_code => int32);
+};

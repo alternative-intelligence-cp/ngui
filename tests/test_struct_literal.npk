@@ -1,0 +1,21 @@
+pub struct:MyHandle = {
+    int64:index;
+    int64:generation;
+};
+
+pub func:main = int32() {
+    int64:i = 5i64;
+    int64:g = 99i64;
+    MyHandle:h = MyHandle{ index: i, generation: g };
+    if (h.index != 5i64) {
+        exit(1i32);
+    }
+    if (h.generation != 99i64) {
+        exit(2i32);
+    }
+    exit(0i32);
+};
+
+func:failsafe = int32(tbb32:err_code) {
+    exit(err_code => int32);
+};

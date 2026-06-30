@@ -1,0 +1,55 @@
+use "protocol.npk".*;
+
+pub func:wl_create_surface = int32(int32: fd, uint32: compositor_id, uint32: new_surface_id) {
+    wild int8->: buf_ptr = alloc(12i64);
+    wild uint32->: buf = @cast_unchecked<uint32->>(@cast_unchecked<int64>(buf_ptr));
+    buf[0] = compositor_id;
+    buf[1] = (12u32 << 16u32) | 0u32;
+    buf[2] = new_surface_id;
+    
+    int32: res = raw wl_write_message(fd, @cast_unchecked<int64>(buf_ptr), 12u64);
+    free(buf_ptr);
+    pass(res);
+};
+
+pub func:xdg_get_xdg_surface = int32(int32: fd, uint32: wm_base_id, uint32: new_xdg_surface_id, uint32: surface_id) {
+    wild int8->: buf_ptr = alloc(16i64);
+    wild uint32->: buf = @cast_unchecked<uint32->>(@cast_unchecked<int64>(buf_ptr));
+    buf[0] = wm_base_id;
+    buf[1] = (16u32 << 16u32) | 2u32;
+    buf[2] = new_xdg_surface_id;
+    buf[3] = surface_id;
+    
+    int32: res = raw wl_write_message(fd, @cast_unchecked<int64>(buf_ptr), 16u64);
+    free(buf_ptr);
+    pass(res);
+};
+
+pub func:xdg_surface_get_toplevel = int32(int32: fd, uint32: xdg_surface_id, uint32: new_toplevel_id) {
+    wild int8->: buf_ptr = alloc(12i64);
+    wild uint32->: buf = @cast_unchecked<uint32->>(@cast_unchecked<int64>(buf_ptr));
+    buf[0] = xdg_surface_id;
+    buf[1] = (12u32 << 16u32) | 1u32;
+    buf[2] = new_toplevel_id;
+    
+    int32: res = raw wl_write_message(fd, @cast_unchecked<int64>(buf_ptr), 12u64);
+    free(buf_ptr);
+    pass(res);
+};
+
+pub func:xdg_surface_ack_configure = int32(int32: fd, uint32: xdg_surface_id, uint32: serial) {
+    // xdg_surface.ack_configure (opcode 4)
+    // object_id = xdg_surface_id
+    // args: serial
+    
+    // total size: 12
+    wild int8->: buf_ptr = alloc(12i64);
+    wild uint32->: buf = @cast_unchecked<uint32->>(@cast_unchecked<int64>(buf_ptr));
+    buf[0] = xdg_surface_id;
+    buf[1] = (12u32 << 16u32) | 4u32;
+    buf[2] = serial;
+    
+    int32: res = raw wl_write_message(fd, @cast_unchecked<int64>(buf_ptr), 12u64);
+    free(buf_ptr);
+    pass(res);
+};

@@ -1,0 +1,6 @@
+pub trait:RenderBackend = {
+    func:clear = NIL();
+    func:draw_rect = NIL(int32: x, int32: y, int32: width, int32: height, uint32: color);
+    func:draw_text = NIL(int32: x, int32: y, string: text, uint32: color);
+    func:present = NIL();
+};

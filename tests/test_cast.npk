@@ -1,0 +1,13 @@
+pub func:main = int32() {
+    wild int8->:p = alloc(10i64) => int8->;
+    defer { free(p); }
+    int64:addr = @cast_unchecked<int64>(p);
+    wild int8->:p2 = @cast_unchecked<int8->>(addr);
+    defer { free(p2); }
+    p2[0] = 5i8;
+    exit(0i32);
+};
+
+func:failsafe = int32(tbb32:err_code) {
+    exit(err_code => int32);
+};

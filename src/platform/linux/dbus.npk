@@ -1,0 +1,42 @@
+pub struct:DBusHeader = {
+    uint8: endianness; // 'l' for little, 'B' for big
+    uint8: message_type;
+    uint8: flags;
+    uint8: protocol_version;
+    uint32: body_length;
+    uint32: serial;
+};
+
+pub func:dbus_connect = int64(int64: path_ptr, uint64: path_len) {
+    int64: fd = raw sys!!(41i64, 1i64, 1i64, 0i64); // socket(AF_UNIX, SOCK_STREAM, 0)
+    if (fd < 0i64) {
+        pass(-1i64);
+    }
+    
+    wild int8->: addr_ptr = alloc(110i64);
+    wild uint8->: addr = @cast_unchecked<uint8->>(@cast_unchecked<int64>(addr_ptr));
+    addr[0] = 1u8; // AF_UNIX family (little endian)
+    addr[1] = 0u8;
+    
+    // copy path
+    uint64: i = 0u64;
+    wild uint8->: p = @cast_unchecked<uint8->>(path_ptr);
+    while (i < path_len && i < 108u64) {
+        addr[2u64 + i] = p[i];
+        i = i + 1u64;
+    }
+    addr[2u64 + i] = 0u8; // null terminator
+    
+    uint64: addr_len = 2u64 + i + 1u64;
+    
+    // connect(fd, sockaddr, len)
+    int64: res = raw sys!!(42i64, fd, @cast_unchecked<int64>(addr_ptr), @cast_unchecked<int64>(addr_len));
+    free(addr_ptr);
+    
+    if (res < 0i64) {
+        int64: _d = raw sys!!(3i64, fd);
+        pass(-1i64);
+    }
+    
+    pass(fd);
+};

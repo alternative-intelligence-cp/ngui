@@ -1,0 +1,9 @@
+use "../src/render/software/buffer.npk".*;
+
+pub func:failsafe = int32(tbb32:err) {
+    exit(1i32);
+};
+
+pub func:main = int32() {
+    exit(0i32);
+};

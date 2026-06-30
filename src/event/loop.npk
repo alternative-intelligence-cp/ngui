@@ -1,0 +1,100 @@
+use "/home/randy/Workspace/REPOS/ngui/src/core/ngui_arena.npk".*;
+use "/home/randy/Workspace/REPOS/nitpick-sched/src/isolation/context.npk".*;
+use "/home/randy/Workspace/REPOS/nitpick-sched/src/context/coroutine.npk".*;
+
+extern "libc" {
+    func:clock_nanosleep = int32(int32:clock_id, int32:flags, int64:req, int64:rem);
+    func:sys_clone = int32(int64:flags, int64:child_stack);
+    func:pthread_spin_init = int32(int64:lock, int32:pshared);
+    func:pthread_spin_lock = int32(int64:lock);
+    func:pthread_spin_unlock = int32(int64:lock);
+}
+
+pub struct:MPSCQueue = {
+    int64: lock_ptr; // pointer to pthread_spinlock_t
+    int64: items_ptr;
+    int64: count;
+    int64: head;
+    int64: tail;
+};
+
+pub func:mpsc_init = NIL(wild MPSCQueue->:q) {
+    q->lock_ptr = @cast_unchecked<int64>(alloc(64i64)); // Allocate 64 bytes for pthread_spinlock_t
+    int32: _d1 = pthread_spin_init(q->lock_ptr, 0i32);
+    q->items_ptr = @cast_unchecked<int64>(alloc(1024i64 * 8i64));
+    q->count = 0i64;
+    q->head = 0i64;
+    q->tail = 0i64;
+    pass(NIL);
+};
+
+pub func:mpsc_push = bool(wild MPSCQueue->:q, uint64: data) {
+    int32: _d2 = pthread_spin_lock(q->lock_ptr);
+    
+    bool: success = false;
+    if (q->count < 1024i64) {
+        wild uint64->: items = @cast_unchecked<uint64->>(q->items_ptr);
+        items[q->tail] = data;
+        q->tail = (q->tail + 1i64) % 1024i64;
+        q->count = q->count + 1i64;
+        success = true;
+    }
+    
+    int32: _d3 = pthread_spin_unlock(q->lock_ptr);
+    pass(success);
+};
+
+pub func:mpsc_pop = uint64(wild MPSCQueue->:q) {
+    int32: _d4 = pthread_spin_lock(q->lock_ptr);
+    
+    uint64: result = 0xffffffffffffffffu64;
+    if (q->count > 0i64) {
+        wild uint64->: items = @cast_unchecked<uint64->>(q->items_ptr);
+        result = items[q->head];
+        q->head = (q->head + 1i64) % 1024i64;
+        q->count = q->count - 1i64;
+    }
+    
+    int32: _d5 = pthread_spin_unlock(q->lock_ptr);
+    pass(result);
+};
+
+// Async Event Loop for UI
+pub func:ui_event_loop = NIL(MyHandle:ui_task, Arena->:tcb_arena) {
+    any->: tcb_any = raw ngui_arena_get(tcb_arena, ui_task);
+    wild TCB->: tcb = tcb_any => TCB->;
+    wild SchedulingContext->: sc = tcb->kernel_stack => SchedulingContext->;
+    
+    // Set UI task virtual runtime (vruntime) weight to maximum priority
+    tcb->ctx.nice_value = -20i32; // Maximum priority
+    
+    loop(0i64, 1i64, 0i64) { // infinite loop
+        // monitor_budget_expiry
+        if (sc->consumed >= sc->budget) {
+            // Offload background wait
+            // 0 = CLOCK_REALTIME
+            wild int8->: ts_ptr = alloc(16i64);
+            wild uint64->: ts = @cast_unchecked<uint64->>(ts_ptr);
+            ts[0] = 0u64; // tv_sec
+            ts[1] = 1000000u64; // tv_nsec (1 ms)
+            
+            int32: _ds = clock_nanosleep(0i32, 0i32, @cast_unchecked<int64>(ts_ptr), 0i64);
+            free(ts_ptr);
+            
+            // Reset consumed budget after replenish
+            _? sc_replenish(sc);
+            
+            // Task state -> yielding
+            _? await_suspend(@cast_unchecked<int64>(tcb), 0i64);
+        }
+        
+        // Process UI events here...
+        
+        // Accumulate consumed budget for this tick
+        _? sc_consume(sc, 100000i64); // 100us pseudo tick
+        
+        // _? await_yield();
+    }
+    
+    pass(NIL);
+};

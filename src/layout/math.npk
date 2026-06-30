@@ -1,0 +1,24 @@
+pub struct:LayoutUnit = {
+    fix256: val;
+};
+
+// Returns 0 on success. Writers result to out_ptr.
+pub func:layout_add = int32(int64: a_ptr, int64: b_ptr, int64: out_ptr) {
+    (@cast_unchecked<LayoutUnit->>(out_ptr))[0].val = (@cast_unchecked<LayoutUnit->>(a_ptr))[0].val + (@cast_unchecked<LayoutUnit->>(b_ptr))[0].val;
+    pass(0i32);
+};
+
+pub func:layout_sub = int32(int64: a_ptr, int64: b_ptr, int64: out_ptr) {
+    (@cast_unchecked<LayoutUnit->>(out_ptr))[0].val = (@cast_unchecked<LayoutUnit->>(a_ptr))[0].val - (@cast_unchecked<LayoutUnit->>(b_ptr))[0].val;
+    pass(0i32);
+};
+
+pub func:layout_mul = int32(int64: a_ptr, int64: b_ptr, int64: out_ptr) {
+    (@cast_unchecked<LayoutUnit->>(out_ptr))[0].val = (@cast_unchecked<LayoutUnit->>(a_ptr))[0].val * (@cast_unchecked<LayoutUnit->>(b_ptr))[0].val;
+    pass(0i32);
+};
+
+pub func:layout_div = int32(int64: a_ptr, int64: b_ptr, int64: out_ptr) {
+    (@cast_unchecked<LayoutUnit->>(out_ptr))[0].val = (@cast_unchecked<LayoutUnit->>(a_ptr))[0].val / (@cast_unchecked<LayoutUnit->>(b_ptr))[0].val;
+    pass(0i32);
+};

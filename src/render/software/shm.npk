@@ -1,0 +1,44 @@
+pub func:shm_allocate_buffer = int64(uint64: size, int64: out_fd_ptr) {
+    // memfd_create(name, flags) -> syscall 319
+    int64: fd_res = raw sys!!(319i64, "ngui-shm\0", 0i64);
+    int32: fd = @cast_unchecked<int32>(fd_res);
+    if (fd < 0i32) {
+        (@cast_unchecked<int32->>(out_fd_ptr))[0] = -1i32;
+        pass(-1i64);
+    }
+
+    // ftruncate(fd, length) -> syscall 77
+    int64: res_trunc = raw sys!!(77i64, @cast_unchecked<int64>(fd), @cast_unchecked<int64>(size));
+    int32: res = @cast_unchecked<int32>(res_trunc);
+    if (res < 0i32) {
+        // close(fd) -> syscall 3
+        int64: _d = raw sys!!(3i64, @cast_unchecked<int64>(fd));
+        (@cast_unchecked<int32->>(out_fd_ptr))[0] = -1i32;
+        pass(-1i64);
+    }
+
+    // mmap(addr, length, prot, flags, fd, offset) -> syscall 9
+    // prot: PROT_READ | PROT_WRITE = 3
+    // flags: MAP_SHARED = 1
+    int64: addr = raw sys!!(9i64, 0i64, @cast_unchecked<int64>(size), 3i64, 1i64, @cast_unchecked<int64>(fd), 0i64);
+    // mmap returns -1 on failure
+    if (addr == -1i64 || addr < 0i64) {
+        int64: _d2 = raw sys!!(3i64, @cast_unchecked<int64>(fd));
+        (@cast_unchecked<int32->>(out_fd_ptr))[0] = -1i32;
+        pass(-1i64);
+    }
+
+    (@cast_unchecked<int32->>(out_fd_ptr))[0] = fd;
+    pass(addr);
+};
+
+pub func:shm_free_buffer = NIL(int64: addr, uint64: size, int32: fd) {
+    if (addr != -1i64 && addr > 0i64) {
+        // munmap(addr, length) -> syscall 11
+        int64: _d = raw sys!!(11i64, addr, @cast_unchecked<int64>(size));
+    }
+    if (fd >= 0i32) {
+        // close(fd) -> syscall 3
+        int64: _d2 = raw sys!!(3i64, @cast_unchecked<int64>(fd));
+    }
+};

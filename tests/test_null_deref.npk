@@ -1,0 +1,14 @@
+pub struct:Dummy = {
+    int32:x;
+};
+
+pub func:main = int32() {
+    wild Dummy->:ptr = NULL;
+    defer { free(ptr); }
+    int32:x = ptr->x; // Dereference NULL
+    exit(0i32);
+};
+
+func:failsafe = int32(tbb32:err_code) {
+    exit(err_code => int32);
+};

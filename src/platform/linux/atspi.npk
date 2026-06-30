@@ -1,0 +1,26 @@
+use "dbus.npk".*;
+use "../../core/a11y.npk".*;
+use "../../core/widget.npk".*;
+
+pub func:atspi_init = int64(int64: path_ptr, uint64: path_len) {
+    int64: fd = raw dbus_connect(path_ptr, path_len);
+    if (fd < 0i64) {
+        pass(-1i64);
+    }
+    
+    // We would send the DBus Hello message here.
+    pass(fd);
+};
+
+pub func:atspi_dispatch = int32(int64: fd, any->: root_widget_any) {
+    // Basic D-Bus event loop stub for AT-SPI serialization
+    // We would use raw sys!!(47) (recvmsg) to read queries like GetRole
+    
+    int32: role = raw widget_get_role(root_widget_any);
+    string: name = raw widget_get_name(root_widget_any);
+    uint64: state = raw widget_get_state(root_widget_any);
+    
+    // Here we serialize `role`, `name`, and `state` back into D-Bus binary packets
+    
+    pass(0i32);
+};

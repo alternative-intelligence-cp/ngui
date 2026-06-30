@@ -1,0 +1,16 @@
+pub trait:AccessibleProvider = {
+    func:get_role = int32(any->:self);
+    func:get_name = string(any->:self); 
+    func:get_state = uint64(any->:self);
+};
+
+pub fixed int32:A11Y_ROLE_INVALID = 0i32;
+pub fixed int32:A11Y_ROLE_APPLICATION = 1i32;
+pub fixed int32:A11Y_ROLE_WINDOW = 2i32;
+pub fixed int32:A11Y_ROLE_BUTTON = 3i32;
+pub fixed int32:A11Y_ROLE_LABEL = 4i32;
+
+pub fixed uint64:A11Y_STATE_INVALID = 0u64;
+pub fixed uint64:A11Y_STATE_FOCUSED = 1u64;
+pub fixed uint64:A11Y_STATE_ENABLED = 2u64;
+pub fixed uint64:A11Y_STATE_VISIBLE = 4u64;

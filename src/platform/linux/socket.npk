@@ -1,0 +1,82 @@
+extern "libc" {
+    func:socket = int32(int32:domain, int32:type, int32:protocol);
+    func:connect = int32(int32:sockfd, int64:addr, int32:addrlen);
+    func:getenv = int64(string:name);
+    func:strlen = int32(int64:s);
+    func:memcpy = int64(int64:dest, int64:src, int32:n);
+}
+
+pub func:connect_wayland = int32() {
+    // Read $XDG_RUNTIME_DIR
+    int64: xdg_dir_ptr = getenv("XDG_RUNTIME_DIR\0");
+    if (xdg_dir_ptr == 0i64) {
+        pass(-1i32);
+    }
+    
+    // Read $WAYLAND_DISPLAY
+    int64: wayland_disp_ptr = getenv("WAYLAND_DISPLAY\0");
+    if (wayland_disp_ptr == 0i64) {
+        wild int8->: def_wayland = alloc(10i64);
+        wayland_disp_ptr = @cast_unchecked<int64>(def_wayland);
+        def_wayland[0] = 119i8; // w
+        def_wayland[1] = 97i8;  // a
+        def_wayland[2] = 121i8; // y
+        def_wayland[3] = 108i8; // l
+        def_wayland[4] = 97i8;  // a
+        def_wayland[5] = 110i8; // n
+        def_wayland[6] = 100i8; // d
+        def_wayland[7] = 45i8;  // -
+        def_wayland[8] = 48i8;  // 0
+        def_wayland[9] = 0i8;
+    }
+    
+    int32: xdg_len = strlen(xdg_dir_ptr);
+    int32: disp_len = strlen(wayland_disp_ptr);
+    
+    if ((xdg_len + disp_len + 2i32) > 108i32) {
+        pass(-1i32); // Path too long
+    }
+    
+    // Allocate sockaddr_un (2 bytes family + 108 bytes path = 110 bytes)
+    wild int8->: addr = alloc(110i64);
+    int64: addr_ptr = @cast_unchecked<int64>(addr);
+    
+    // Set family (AF_UNIX = 1)
+    wild uint16->: family = @cast_unchecked<uint16->>(addr_ptr);
+    family[0] = 1u16;
+    
+    // Copy path
+    int64: path_ptr = addr_ptr + 2i64;
+    int64: _d1 = memcpy(path_ptr, xdg_dir_ptr, xdg_len);
+    
+    // Add '/'
+    wild int8->: slash_ptr = @cast_unchecked<int8->>(path_ptr + @cast_unchecked<int64>(xdg_len));
+    slash_ptr[0] = 47i8; // '/'
+    
+    // Copy display name
+    int64: _d2 = memcpy(path_ptr + @cast_unchecked<int64>(xdg_len) + 1i64, wayland_disp_ptr, disp_len);
+    
+    // Add null terminator
+    wild int8->: null_ptr = @cast_unchecked<int8->>(path_ptr + @cast_unchecked<int64>(xdg_len) + 1i64 + @cast_unchecked<int64>(disp_len));
+    null_ptr[0] = 0i8;
+    
+    // AF_UNIX = 1, SOCK_STREAM = 1, SOCK_CLOEXEC = 524288 (02000000)
+    int32: sock_type = 1i32 | 524288i32;
+    int32: fd = socket(1i32, sock_type, 0i32);
+    
+    if (fd < 0i32) {
+        free(addr);
+        pass(-1i32);
+    }
+    
+    int32: len = 2i32 + xdg_len + 1i32 + disp_len + 1i32;
+    int32: res = connect(fd, addr_ptr, len);
+    
+    free(addr);
+    
+    if (res < 0i32) {
+        pass(-1i32);
+    }
+    
+    pass(fd);
+};

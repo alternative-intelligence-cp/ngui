@@ -1,0 +1,11 @@
+pub func:failsafe = int32(tbb32:err) { exit(1i32); };
+pub func:main = int32() {
+    int64: fd = raw sys!!(41i64, 1i64, 1i64, 0i64); // socket(AF_UNIX, SOCK_STREAM, 0)
+    if (fd < 0i64) {
+        exit(1i32);
+    }
+    
+    // For now we don't actually connect, just test socket creation
+    int64: _d = raw sys!!(3i64, fd); // close
+    exit(0i32);
+};

@@ -1,0 +1,14 @@
+extern "libc" {
+    func:printf = int32(string:fmt, int32:a, int32:b);
+}
+
+pub fixed int32[4]:my_array = [ 100i32, 200i32, 300i32, 400i32 ];
+
+pub func:failsafe = int32(tbb32:err) { exit(1i32); };
+
+pub func:main = int32() {
+    int32:first = <-cast_unchecked<int32->>(@my_array);
+    int32:second = <-(cast_unchecked<int32->>(cast_unchecked<int64>(@my_array) + 4i64));
+    drop printf("First: %d, Second: %d\n", first, second);
+    return 0i32;
+};

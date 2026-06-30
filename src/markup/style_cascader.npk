@@ -1,0 +1,133 @@
+// style_cascader.npk
+use "../core/widget.npk".*;
+use "unsafe.npk".*;
+
+// Defines the CSS parsing AST node constants we use in the nparse css_parser
+fixed int32:T_SELECTOR         = 1i32;
+fixed int32:T_IDENT            = 4i32;
+fixed int32:T_VALUE            = 6i32;
+
+fixed int32:AST_CSS_PROPERTY   = 400i32;
+fixed int32:AST_CSS_RULESET    = 401i32;
+fixed int32:AST_CSS_STYLESHEET = 402i32;
+
+// Simple naive atoi implementation
+pub func:simple_atoi = int32(string:s) {
+    int64:cstr = string_to_cstr(s);
+    wild int8->:ptr = cast_unchecked<int8->>(cstr);
+    int32:res = 0i32;
+    while (ptr[0] >= 48i8 && ptr[0] <= 57i8) { // '0' to '9'
+        res = (res * 10i32) + cast_unchecked<int32>(ptr[0] - 48i8);
+        ptr = cast_unchecked<int8->>(cast_unchecked<int64>(ptr) + 1i64);
+    }
+    pass(res);
+};
+
+// The cascader is responsible for taking the parsed CSS AST and applying it to Widgets
+pub func:ngui_style_apply = int32(wild Widget->:w, wild RedNode->:css_ast, wild GreenArena->:css_arena, string:css_source) {
+    if (css_ast == cast_unchecked<RedNode->>(0i64)) {
+        drop println("css_ast is NULL");
+        pass 0i32;
+    }
+    
+    int32:css_kind = css_ast->kind;
+    drop println(`CSS AST KIND: &{css_kind}`);
+    if (css_kind != AST_CSS_STYLESHEET) {
+        pass 0i32;
+    }
+
+    int64:src_cstr = string_to_cstr(css_source);
+
+    // Iterate through rulesets
+    wild RedNode->:ruleset = css_ast->first_child;
+    while (ruleset != cast_unchecked<RedNode->>(0i64)) {
+        int32:curr_kind = ruleset->kind;
+        drop println(`Checking ruleset kind: &{curr_kind}`);
+        if (ruleset->kind == AST_CSS_RULESET) {
+            
+            int32:rkind = ruleset->kind;
+            drop println(`Ruleset kind: &{rkind}`);
+            // First child of a ruleset is the selector
+            wild RedNode->:selector_node = ruleset->first_child;
+            if (selector_node != cast_unchecked<RedNode->>(0i64)) {
+                int32:skind = selector_node->kind;
+                drop println(`Selector kind: &{skind}`);
+            }
+            if (selector_node != cast_unchecked<RedNode->>(0i64) && selector_node->kind == T_SELECTOR) {
+                
+                wild GreenNode->:gselector = raw npk_arena_get(css_arena, selector_node->green);
+                int64:sel_offset = selector_node->absolute_offset;
+                int64:sel_len = cast_unchecked<int64>(gselector->width);
+                string:selector_str = string_substring(string_from_cstr(cast_unchecked<int8->>(src_cstr)), sel_offset, sel_offset + sel_len);
+
+                // Match against widget
+                // E.g. #my-id or window
+                bool:matched = false;
+
+                if (string_length(selector_str) > 0i64) {
+                    wild int8->:sel_ptr = cast_unchecked<int8->>(string_to_cstr(selector_str));
+                    if (sel_ptr[0] == 35i8) { // '#'
+                        // Match ID
+                        string:id_sel = string_substring(selector_str, 1i64, string_length(selector_str));
+                        if (string_equals(id_sel, w->id)) {
+                            matched = true;
+                        }
+                    } else {
+                        // Match Tag Name
+                        if (string_equals(selector_str, w->tag_name)) {
+                            matched = true;
+                        }
+                    }
+                }
+
+                if (matched) {
+                    // Apply properties
+                    wild RedNode->:prop_node = selector_node->next_sibling;
+                    while (prop_node != cast_unchecked<RedNode->>(0i64)) {
+                        if (prop_node->kind == AST_CSS_PROPERTY) {
+                            
+                            wild RedNode->:ident_node = prop_node->first_child;
+                            if (ident_node != cast_unchecked<RedNode->>(0i64) && ident_node->kind == T_IDENT) {
+                                
+                                // Find value node
+                                wild RedNode->:val_node = ident_node->next_sibling;
+                                while (val_node != cast_unchecked<RedNode->>(0i64) && val_node->kind != T_VALUE) {
+                                    val_node = val_node->next_sibling;
+                                }
+
+                                if (val_node != cast_unchecked<RedNode->>(0i64) && val_node->kind == T_VALUE) {
+                                    wild GreenNode->:gident = raw npk_arena_get(css_arena, ident_node->green);
+                                    int64:ident_offset = ident_node->absolute_offset;
+                                    int64:ident_len = cast_unchecked<int64>(gident->width);
+                                    string:prop_name = string_substring(string_from_cstr(cast_unchecked<int8->>(src_cstr)), ident_offset, ident_offset + ident_len);
+
+                                    wild GreenNode->:gval = raw npk_arena_get(css_arena, val_node->green);
+                                    int64:val_offset = val_node->absolute_offset;
+                                    int64:val_len = cast_unchecked<int64>(gval->width);
+                                    string:prop_val = string_substring(string_from_cstr(cast_unchecked<int8->>(src_cstr)), val_offset, val_offset + val_len);
+
+                                    // Map to widget fields
+                                    int32:int_val = raw simple_atoi(prop_val);
+
+                                    if (string_equals(prop_name, "width")) {
+                                        w->width.val = cast_unchecked<fix256>(cast_unchecked<int64>(int_val));
+                                    } else if (string_equals(prop_name, "height")) {
+                                        w->height.val = cast_unchecked<fix256>(cast_unchecked<int64>(int_val));
+                                    } else if (string_equals(prop_name, "x")) {
+                                        w->x.val = cast_unchecked<fix256>(cast_unchecked<int64>(int_val));
+                                    } else if (string_equals(prop_name, "y")) {
+                                        w->y.val = cast_unchecked<fix256>(cast_unchecked<int64>(int_val));
+                                    }
+                                }
+                            }
+                        }
+                        prop_node = prop_node->next_sibling;
+                    }
+                }
+            }
+        }
+        ruleset = ruleset->next_sibling;
+    }
+
+    pass 1i32; // Success
+};

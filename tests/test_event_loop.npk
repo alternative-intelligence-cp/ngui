@@ -1,0 +1,58 @@
+use "/home/randy/Workspace/REPOS/ngui/src/core/ngui_arena.npk".*;
+use "/home/randy/Workspace/REPOS/ngui/src/event/loop.npk".*;
+
+pub func:main = int32() {
+    // 1. Setup Arena
+    wild Arena->:tcb_arena = raw my_arena_create(@sizeof(TCB));
+    
+    // 2. Setup TCB with maximum priority context
+    wild SchedulingContext->:sc = alloc(@sizeof(SchedulingContext)) => SchedulingContext->;
+    sc->budget = 100.0fix256;
+    sc->period = 1000.0fix256;
+    sc->consumed = 0.0fix256;
+    
+    wild TCB->:tcb_ptr = alloc(@sizeof(TCB)) => TCB->;
+    tcb_ptr->ctx.vruntime = 0.0fix256;
+    tcb_ptr->ctx.budget = 100.0fix256;
+    tcb_ptr->ctx.period = 1000.0fix256;
+    tcb_ptr->ctx.nice_value = 0i32;
+    
+    tcb_ptr->pid = 999i64;
+    tcb_ptr->kernel_stack = sc => any->; // Link SC
+    
+    any->:tcb_any = tcb_ptr => any->;
+    MyHandle:ui_task_handle = raw ngui_arena_alloc(tcb_arena, tcb_any);
+    
+    // 3. Test MPSC Queue
+    wild MPSCQueue->:queue = alloc(@sizeof(MPSCQueue)) => MPSCQueue->;
+    _? mpsc_init(queue);
+    
+    _? mpsc_push(queue, 42u64);
+    _? mpsc_push(queue, 100u64);
+    
+    uint64: v1 = raw mpsc_pop(queue);
+    uint64: v2 = raw mpsc_pop(queue);
+    
+    int32: code = 0i32;
+    if (v1 != 42u64) {
+        code = 2i32;
+    }
+    if (v2 != 100u64) {
+        code = @cast_unchecked<int32>(v2);
+    }
+    
+    free(queue);
+    free(sc);
+    free(tcb_ptr);
+    _? raw ngui_arena_destroy(tcb_arena);
+    
+    exit(code);
+    
+    // Test the async event loop (We just verify it compiles and yields correctly)
+    
+    exit(0i32);
+};
+
+func:failsafe = int32(tbb32:err_code) {
+    exit(err_code => int32);
+};

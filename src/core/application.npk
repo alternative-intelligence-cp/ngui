@@ -1,0 +1,166 @@
+use "ngui_arena.npk".*;
+use "widget.npk".*;
+use "../markup/parser.npk".*;
+use "unsafe.npk".*;
+
+extern "libc" {
+    func:fopen = int64(string:f, string:m);
+    func:fseek = int32(int64:st, int64:o, int32:w);
+    func:ftell = int64(int64:st);
+    func:rewind = NIL(int64:st);
+    func:fread = int64(int64:p, int64:s, int64:n, int64:st);
+    func:fclose = int32(int64:st);
+    func:malloc = int64(int64:s);
+}
+
+use "parsers/css_parser.npk".{npk_parser_css_create};
+use "engine/execute.npk".{npk_parse};
+use "lexer/dfa_lexer.npk".{StrView};
+use "memory/green_arena.npk".{GreenArena, npk_arena_create_int64, npk_arena_teardown, npk_arena_push, npk_arena_get};
+use "core/green_node.npk".{GreenNode};
+use "memory/handle.npk".{CompactHandle};
+
+GreenArena:__dummy_arena_workaround;
+
+pub struct:Application = {
+    Arena->:widget_arena;
+    Widget->:root_widget;
+    string:last_markup;
+    string:markup_file_path;
+    int64:css_grammar_handle;
+    CompactHandle<GreenNode>:stylesheet_ast;
+    int64:css_arena; // GreenArena-> (for storing CSS AST nodes)
+    string:css_source;
+};
+
+pub func:application_create = Application->() {
+    wild Application->:app = alloc(@sizeof(Application)) => Application->;
+    app->widget_arena = raw my_arena_create(4096i64);
+    app->root_widget = cast_unchecked<Widget->>(0i64);
+    app->last_markup = "";
+    app->markup_file_path = "";
+    app->css_grammar_handle = 0i64;
+    CompactHandle<GreenNode>:empty_ast;
+    empty_ast.index = 0u32;
+    empty_ast.generation = 0u32;
+    app->stylesheet_ast = empty_ast;
+    app->css_arena = 0i64;
+    app->css_source = "";
+    pass(app);
+};
+
+pub func:application_init_css = bool(Application->:app) {
+    if (app->css_grammar_handle == 0i64) {
+        app->css_grammar_handle = cast_unchecked<int64>(raw npk_parser_css_create());
+        app->css_arena = raw npk_arena_create_int64(65536i64);
+    }
+    pass(app->css_grammar_handle != 0i64);
+};
+
+pub func:application_load_stylesheet = bool(Application->:app, string:css_source) {
+    if (app->css_grammar_handle == 0i64) {
+        drop raw application_init_css(app);
+    }
+    
+    StrView:src;
+    src.data = cast_unchecked<int8->>(string_to_cstr(css_source));
+    src.length = string_length(css_source);
+    
+    wild GreenArena->:arena = cast_unchecked<GreenArena->>(app->css_arena);
+    
+    // npk_parse(grammar, source, max_recursion_depth, arena, diags_queue)
+    CompactHandle<GreenNode>:root_h = raw npk_parse(app->css_grammar_handle, src, 1024u32, arena, 0i64);
+    
+    // Assign CompactHandle directly
+    app->stylesheet_ast = root_h;
+    app->css_source = css_source;
+    
+    pass(root_h.index != 0u32);
+};
+
+pub func:application_load_markup = bool(Application->:app, string:markup_source) {
+    if (app->root_widget != cast_unchecked<Widget->>(0i64)) {
+        drop widget_destroy(app->root_widget);
+        drop ngui_arena_destroy(app->widget_arena);
+        app->widget_arena = raw my_arena_create(4096i64);
+    }
+    
+    app->last_markup = markup_source;
+    string:local_css = app->css_source;
+    app->root_widget = raw ngui_parse_markup(markup_source, app->widget_arena, app->stylesheet_ast, cast_unchecked<GreenArena->>(app->css_arena), local_css);
+    pass(app->root_widget != cast_unchecked<Widget->>(0i64));
+};
+
+pub func:application_load_markup_file = bool(Application->:app, string:file_path) {
+    int64:file = fopen(file_path, "rb");
+    if (file == 0i64) {
+        pass(false);
+    }
+    
+    drop fseek(file, 0i64, 2i32); // SEEK_END
+    int64:size = ftell(file);
+    drop rewind(file);
+    
+    int64:buf_ptr = malloc(size + 1i64);
+    drop fread(buf_ptr, 1i64, size, file);
+    drop fclose(file);
+    
+    int8->:ptr = cast_unchecked<int8->>(buf_ptr);
+    ptr[size] = 0i8;
+    
+    string:markup = string_from_cstr(ptr); 
+    
+    app->markup_file_path = file_path;
+    pass(raw application_load_markup(app, markup));
+};
+
+pub func:application_load_stylesheet_file = bool(Application->:app, string:file_path) {
+    int64:file = fopen(file_path, "rb");
+    if (file == 0i64) {
+        pass(false);
+    }
+    
+    drop fseek(file, 0i64, 2i32); // SEEK_END
+    int64:size = ftell(file);
+    drop rewind(file);
+    
+    int64:buf_ptr = malloc(size + 1i64);
+    drop fread(buf_ptr, 1i64, size, file);
+    drop fclose(file);
+    
+    int8->:ptr = cast_unchecked<int8->>(buf_ptr);
+    ptr[size] = 0i8;
+    
+    string:css_src = string_from_cstr(ptr); 
+    drop puts("LOADED CSS SOURCE:");
+    drop puts(css_src);
+    drop puts("--- END CSS SOURCE ---");
+    pass(raw application_load_stylesheet(app, css_src));
+};
+
+
+pub func:application_reload_ui = bool(Application->:app) {
+    string:path = app->markup_file_path;
+    if (string_length(path) > 0i64) {
+        pass(raw application_load_markup_file(app, path));
+    }
+    string:last = app->last_markup;
+    if (string_length(last) == 0i64) {
+        pass(false);
+    }
+    pass(raw application_load_markup(app, last));
+};
+
+pub func:application_destroy = NIL(Application->:app) {
+    if (app->root_widget != cast_unchecked<Widget->>(0i64)) {
+        drop widget_destroy(app->root_widget);
+    }
+    if (app->widget_arena != cast_unchecked<Arena->>(0i64)) {
+        drop ngui_arena_destroy(app->widget_arena);
+    }
+    if (app->css_arena != 0i64) {
+        drop npk_arena_teardown(cast_unchecked<GreenArena->>(app->css_arena));
+    }
+    free(cast_unchecked<int8->>(app));
+    pass(NIL);
+};

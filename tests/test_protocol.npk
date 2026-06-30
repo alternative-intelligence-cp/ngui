@@ -1,0 +1,17 @@
+use "../src/platform/linux/protocol.npk".*;
+
+pub func:failsafe = int32(tbb32:err) {
+    exit(1i32);
+};
+
+pub func:main = int32() {
+    // Just verify compilation and basic sizes
+    wild int8->: buf = alloc(1024i64);
+    wild int8->: fds = alloc(256i64);
+    
+    // We don't actually have a fd, so we won't call wl_read_message, 
+    // we just want to ensure it compiles!
+    free(fds);
+    free(buf);
+    exit(0i32);
+};

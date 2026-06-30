@@ -1,0 +1,53 @@
+pub struct:SoftwareBuffer = {
+    int64: addr;
+    int32: width;
+    int32: height;
+    int32: stride;
+};
+
+// Returns 0 on success, -1 on out of bounds
+pub func:set_pixel = int32(SoftwareBuffer: buf, int32: x, int32: y, uint32: color) {
+    if (x < 0i32) { pass(-1i32); }
+    if (y < 0i32) { pass(-1i32); }
+    if (x >= buf.width) { pass(-1i32); }
+    if (y >= buf.height) { pass(-1i32); }
+    
+    // index = (y * stride) + (x * 4) since color is 4 bytes
+    int32: offset = (y * buf.stride) + (x * 4i32);
+    
+    int64: pixel_addr = buf.addr + @cast_unchecked<int64>(offset);
+    wild uint32->: pixel = @cast_unchecked<uint32->>(pixel_addr);
+    pixel[0] = color;
+    
+    pass(0i32);
+};
+
+pub func:clear_buffer = NIL(SoftwareBuffer: buf, uint32: color) {
+    int32: y = 0i32;
+    while (y < buf.height) {
+        int32: x = 0i32;
+        while (x < buf.width) {
+            int32: offset = (y * buf.stride) + (x * 4i32);
+            int64: pixel_addr = buf.addr + @cast_unchecked<int64>(offset);
+            wild uint32->: pixel = @cast_unchecked<uint32->>(pixel_addr);
+            pixel[0] = color;
+            x = x + 1i32;
+        }
+        y = y + 1i32;
+    }
+};
+
+pub func:draw_rect = NIL(SoftwareBuffer: buf, int32: x, int32: y, int32: w, int32: h, uint32: color) {
+    int32: end_x = x + w;
+    int32: end_y = y + h;
+    
+    int32: curr_y = y;
+    while (curr_y < end_y) {
+        int32: curr_x = x;
+        while (curr_x < end_x) {
+            drop(set_pixel(buf, curr_x, curr_y, color));
+            curr_x = curr_x + 1i32;
+        }
+        curr_y = curr_y + 1i32;
+    }
+};

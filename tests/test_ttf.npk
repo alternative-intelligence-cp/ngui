@@ -1,0 +1,10 @@
+use "../src/render/text/ttf.npk".*;
+
+pub func:failsafe = int32(tbb32:err) { exit(1i32); };
+pub func:main = int32() {
+    TTFContext: ctx;
+    
+    // We can't really test a file right now unless we mmap one, but it compiles!
+    
+    exit(0i32);
+};

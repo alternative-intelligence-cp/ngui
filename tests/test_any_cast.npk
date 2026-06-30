@@ -1,0 +1,26 @@
+pub struct:TestWidget = {
+    int32:x;
+    int32:y;
+};
+
+pub func:main = int32() {
+    wild TestWidget->:w = alloc(@sizeof(TestWidget)) => TestWidget->;
+    defer { free(w); }
+    w->x = 10i32;
+    w->y = 20i32;
+    
+    // direct cast
+    any->:a = w => any->;
+    
+    // cast back to TestWidget->
+    TestWidget->:w2 = a => TestWidget->;
+    
+    if (w2->x != 10i32) { exit(1i32); }
+    if (w2->y != 20i32) { exit(2i32); }
+    
+    exit(0i32);
+};
+
+func:failsafe = int32(tbb32:err_code) {
+    exit(err_code => int32);
+};

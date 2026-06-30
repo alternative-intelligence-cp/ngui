@@ -1,0 +1,5 @@
+#[align(16)]
+struct:Handle<T> = {
+    int64:index;
+    uint32:generation;
+};

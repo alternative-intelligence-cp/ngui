@@ -1,0 +1,12 @@
+use "../src/platform/linux/socket.npk".*;
+use "../src/platform/linux/protocol.npk".*;
+use "../src/platform/linux/window.npk".*;
+
+pub func:failsafe = int32(tbb32:err) {
+    exit(1i32);
+};
+
+pub func:main = int32() {
+    // Only verify it compiles.
+    exit(0i32);
+};

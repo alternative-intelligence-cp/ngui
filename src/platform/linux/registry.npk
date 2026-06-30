@@ -1,0 +1,75 @@
+use "protocol.npk".*;
+
+extern "libc" {
+    func:printf = int32(string:fmt);
+}
+
+pub func:wl_get_registry = int32(int32: fd) {
+    wild int8->: buf_ptr = alloc(12i64);
+    wild uint32->: buf = @cast_unchecked<uint32->>(@cast_unchecked<int64>(buf_ptr));
+    
+    buf[0] = 1u32; // Object ID 1 (wl_display)
+    // Opcode 1, Size 12 => (12 << 16) | 1 = 786433
+    buf[1] = 786433u32;
+    buf[2] = 2u32; // new_id 2 (wl_registry)
+    
+    int32: res = raw wl_write_message(fd, @cast_unchecked<int64>(buf_ptr), 12u64);
+    free(buf_ptr);
+    pass(res);
+};
+
+pub struct:RegistryState = {
+    uint32: compositor_name;
+    uint32: shm_name;
+    uint32: seat_name;
+    uint32: xdg_wm_base_name;
+};
+
+// Returns 0 on success, -1 on fail
+pub func:wl_bind_global = int32(int32: fd, uint32: name, int64: interface_str, uint32: version, uint32: new_id) {
+    int32: str_len_32 = strlen(interface_str);
+    uint32: str_len = @cast_unchecked<uint32>(str_len_32);
+    // Wayland strings include the null terminator in length
+    uint32: wayland_str_len = str_len + 1u32;
+    
+    // Padding logic: padded length must be a multiple of 4
+    uint32: padded_str_len = (wayland_str_len + 3u32) & 4294967292u32; // ~3
+    
+    // Total size: 8(hdr) + 4(name) + 4(len) + padded_str_len + 4(version) + 4(new_id)
+    uint32: total_size = 24u32 + padded_str_len;
+    
+    wild int8->: buf_ptr = alloc(@cast_unchecked<int64>(total_size));
+    wild uint32->: buf = @cast_unchecked<uint32->>(@cast_unchecked<int64>(buf_ptr));
+    
+    buf[0] = 2u32; // Object ID 2 (wl_registry)
+    // Opcode 0 (bind), Size = total_size
+    buf[1] = (total_size << 16u32) | 0u32;
+    buf[2] = name;
+    buf[3] = wayland_str_len; // includes null byte
+    
+    // Copy string
+    int64: str_dest = @cast_unchecked<int64>(buf_ptr) + 16i64;
+    int64: _d = memcpy(str_dest, interface_str, str_len_32);
+    // null terminator
+    wild int8->: null_ptr = @cast_unchecked<int8->>(str_dest + @cast_unchecked<int64>(str_len_32));
+    null_ptr[0] = 0i8;
+    
+    // Fill padding with 0
+    int32: pad_len = @cast_unchecked<int32>(padded_str_len - wayland_str_len);
+    int32: i = 0i32;
+    while (i < pad_len) {
+        wild int8->: pad_ptr = @cast_unchecked<int8->>(str_dest + @cast_unchecked<int64>(str_len_32) + 1i64 + @cast_unchecked<int64>(i));
+        pad_ptr[0] = 0i8;
+        i = i + 1i32;
+    }
+    
+    // Write version and new_id at the end
+    int64: end_ptr = str_dest + @cast_unchecked<int64>(padded_str_len);
+    wild uint32->: end_buf = @cast_unchecked<uint32->>(end_ptr);
+    end_buf[0] = version;
+    end_buf[1] = new_id;
+    
+    int32: res = raw wl_write_message(fd, @cast_unchecked<int64>(buf_ptr), @cast_unchecked<uint64>(total_size));
+    free(buf_ptr);
+    pass(res);
+};

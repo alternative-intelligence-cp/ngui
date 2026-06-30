@@ -1,0 +1,103 @@
+use "unsafe.npk".*;
+use "../src/core/application.npk".*;
+use "../src/core/widget.npk".*;
+use "../src/layout/math.npk".*;
+use "/home/randy/Workspace/REPOS/nitpick-packages/packages/nitpick-list/src/doubly.npk".*;
+
+extern "libc" {
+    func:puts = int32(string:str);
+}
+
+pub func:main = int32() {
+    Application->:app = raw application_create();
+
+    bool:res = raw application_load_stylesheet_file(app, "tests/test.css");
+    if (!res) {
+        drop puts("Failed to load stylesheet");
+        exit(1i32);
+    }
+
+    string:markup = "<window><button id=\"test_btn\"></button></window>";
+
+    bool:success = raw application_load_markup(app, markup);
+    if (!success) {
+        drop puts("Failed to parse markup");
+        exit(1i32);
+    }
+
+    drop puts("Markup parsed successfully!");
+
+    Widget->:root = app->root_widget;
+    string:tname = root->tag_name;
+    drop println(`Root tag name: &{tname}`);
+
+    if (root == cast_unchecked<Widget->>(0i64)) {
+        drop puts("Root widget is null");
+        exit(1i32);
+    }
+
+    // Verify root is a window
+    if (!string_equals(root->tag_name, "window")) {
+        drop puts("Root is not a window");
+        exit(1i32);
+    }
+
+    if (root->width.val != 800i64) {
+        drop puts("Root window width is not 800px");
+        exit(1i32);
+    }
+
+    int64:children_list = root->children_list;
+    int64:children_count = raw DList_len(children_list);
+
+    if (children_count != 1i64) {
+        drop puts("Expected exactly 1 child widget");
+        exit(1i32);
+    }
+
+    drop puts("Root widget contains exactly 1 child button widget!");
+    
+    // Retrieve the child button widget and verify CSS cascading logic
+    int64:child_ptr = raw DList_peek_front(children_list);
+    Widget->:button = cast_unchecked<Widget->>(child_ptr);
+    
+    if (!string_equals(button->tag_name, "button")) {
+        drop puts("Child is not a button");
+        exit(1i32);
+    }
+    
+    if (!string_equals(button->id, "test_btn")) {
+        drop puts("Child button does not have the expected id");
+        exit(1i32);
+    }
+    
+    if (button->width.val != 300i64) {
+        drop puts("Child button width is not 300px");
+        exit(1i32);
+    }
+    
+    if (button->height.val != 100i64) {
+        drop puts("Child button height is not 100px");
+        exit(1i32);
+    }
+    
+    drop puts("CSS successfully cascaded to the child widget!");
+    
+    // Test the hot-reload
+    bool:reload_success = raw application_reload_ui(app);
+    if (!reload_success) {
+        drop puts("Failed to hot-reload markup");
+        exit(1i32);
+    }
+
+    drop puts("Hot-reload successful!");
+
+    drop application_destroy(app);
+
+    exit(0i32);
+};
+
+pub func:failsafe = int32(tbb32:err) {
+    exit(1i32);
+};
+

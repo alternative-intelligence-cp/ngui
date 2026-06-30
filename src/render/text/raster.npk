@@ -1,0 +1,22 @@
+use "ttf.npk".*;
+use "../software/buffer.npk".*;
+use "../../layout/math.npk".*;
+
+// Native Rasterizer
+// We will build either SDF or scanline rendering algorithms using fix256 primitives here.
+
+pub func:raster_draw_glyph = int32(int64: buffer_ptr, int64: ctx_ptr, uint16: glyph_index, int64: x, int64: y) {
+    wild SoftwareBuffer->: buf = @cast_unchecked<SoftwareBuffer->>(buffer_ptr);
+    wild TTFContext->: ctx = @cast_unchecked<TTFContext->>(ctx_ptr);
+    
+    int64: glyf_offset = raw ttf_get_glyph_offset(ctx_ptr, glyph_index);
+    if (glyf_offset < 0i64) {
+        pass(-1i32);
+    }
+    
+    // TODO: implement TrueType contour extraction and rasterization
+    // Since we are using fix256 layout coordinates, we will interpolate
+    // bezier curves natively using fixed point arithmetic.
+    
+    pass(0i32);
+};

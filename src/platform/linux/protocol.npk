@@ -1,0 +1,54 @@
+extern "libc" {
+}
+
+pub struct:WaylandHeader = {
+    uint32: object_id;
+    uint16: opcode;
+    uint16: size;
+};
+
+pub struct:iovec = {
+    int64: iov_base;
+    uint64: iov_len;
+};
+
+pub struct:msghdr = {
+    int64: msg_name;
+    uint32: msg_namelen;
+    uint32: _pad1;
+    int64: msg_iov;
+    uint64: msg_iovlen;
+    int64: msg_control;
+    uint64: msg_controllen;
+    int32: msg_flags;
+    uint32: _pad2;
+};
+
+pub func:wl_read_message = int32(int32: fd, int64: data_ptr, uint64: buf_size, int64: fds_ptr, uint64: fds_buf_size) {
+    wild int8->: iov_ptr = alloc(16i64); // sizeof(iovec)
+    wild uint64->: iov = @cast_unchecked<uint64->>(@cast_unchecked<int64>(iov_ptr));
+    iov[0] = @cast_unchecked<uint64>(data_ptr);
+    iov[1] = buf_size;
+    
+    wild int8->: msg_ptr = alloc(56i64); // sizeof(msghdr)
+    wild uint64->: msg = @cast_unchecked<uint64->>(@cast_unchecked<int64>(msg_ptr));
+    msg[0] = 0u64; // name & namelen
+    msg[1] = 0u64; // _pad1
+    msg[2] = @cast_unchecked<uint64>(@cast_unchecked<int64>(iov_ptr)); // iov
+    msg[3] = 1u64; // iovlen
+    msg[4] = @cast_unchecked<uint64>(fds_ptr); // control
+    msg[5] = fds_buf_size; // controllen
+    msg[6] = 0u64; // flags
+    
+    int64: res = raw sys!!(47i64, @cast_unchecked<int64>(fd), @cast_unchecked<int64>(msg_ptr), 0i64);
+    
+    free(msg_ptr);
+    free(iov_ptr);
+    
+    pass(@cast_unchecked<int32>(res));
+};
+
+pub func:wl_write_message = int32(int32: fd, int64: buffer, uint64: buf_size) {
+    int64: res = raw sys!!(44i64, @cast_unchecked<int64>(fd), buffer, @cast_unchecked<int64>(buf_size), 0i64, 0i64, 0i64);
+    pass(@cast_unchecked<int32>(res));
+};

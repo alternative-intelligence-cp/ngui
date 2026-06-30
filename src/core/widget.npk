@@ -1,0 +1,68 @@
+use "ngui_arena.npk".*;
+use "/home/randy/Workspace/REPOS/nitpick-packages/packages/nitpick-list/src/doubly.npk".*;
+
+use "../layout/math.npk".*;
+use "a11y.npk".*;
+
+pub struct:Widget = {
+    string:tag_name;
+    string:id;
+    LayoutUnit:x;
+    LayoutUnit:y;
+    LayoutUnit:width;
+    LayoutUnit:height;
+    int64:children_list; // DList handle holding packed MyHandle (int64)
+};
+
+pub func:widget_create = Widget->() {
+    int64:dlist_ptr = raw DList.create();
+    wild Widget->:w = alloc(136i64) => Widget->;
+    
+    // We cannot do w->x = 0i32, we must assign LayoutUnit
+    fix256: zero = 0;
+    fix256: hundred = 100;
+    
+    LayoutUnit: z_unit; z_unit.val = zero;
+    LayoutUnit: h_unit; h_unit.val = hundred;
+    
+    w->tag_name = "";
+    w->id = "";
+    w->x = z_unit;
+    w->y = z_unit;
+    w->width = h_unit;
+    w->height = h_unit;
+    w->children_list = dlist_ptr;
+    pass w;
+};
+
+pub func:widget_destroy = int32(Widget->:w) {
+    if (w->children_list != 0i64) {
+        int32:res = raw DList.destroy(w->children_list);
+    }
+    pass 0i32;
+};
+
+pub func:widget_add_child = int32(Widget->:parent, MyHandle:child_handle) {
+    int64:pack = raw my_handle_pack(child_handle);
+    int32:res = raw DList.push_back(parent->children_list, pack);
+    pass res;
+};
+
+pub func:widget_remove_child = int32(Widget->:parent, MyHandle:child_handle) {
+    int64:pack = raw my_handle_pack(child_handle);
+    int32:res = raw DList.remove_first(parent->children_list, pack);
+    pass res;
+};
+
+pub func:widget_get_role = int32(any->: self_any) {
+    pass(A11Y_ROLE_APPLICATION);
+};
+
+pub func:widget_get_name = string(any->: self_any) {
+    pass("Widget\0");
+};
+
+pub func:widget_get_state = uint64(any->: self_any) {
+    pass(A11Y_STATE_ENABLED | A11Y_STATE_VISIBLE);
+};
+

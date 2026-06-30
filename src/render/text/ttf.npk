@@ -1,0 +1,168 @@
+pub struct:TTFContext = {
+    int64: file_data;
+    uint64: file_size;
+    int64: cmap_offset;
+    int64: glyf_offset;
+    int64: loca_offset;
+    int64: head_offset;
+    uint16: num_glyphs;
+    uint16: loca_format; // 0 for short, 1 for long
+};
+
+pub func:read_u16_be = uint16(int64: data_ptr, uint64: offset) {
+    wild uint8->: data = @cast_unchecked<uint8->>(data_ptr);
+    uint16: b0 = @cast_unchecked<uint16>(data[offset]);
+    uint16: b1 = @cast_unchecked<uint16>(data[offset + 1u64]);
+    pass((b0 << 8u16) | b1);
+};
+
+pub func:read_u32_be = uint32(int64: data_ptr, uint64: offset) {
+    wild uint8->: data = @cast_unchecked<uint8->>(data_ptr);
+    uint32: b0 = @cast_unchecked<uint32>(data[offset]);
+    uint32: b1 = @cast_unchecked<uint32>(data[offset + 1u64]);
+    uint32: b2 = @cast_unchecked<uint32>(data[offset + 2u64]);
+    uint32: b3 = @cast_unchecked<uint32>(data[offset + 3u64]);
+    pass((b0 << 24u32) | (b1 << 16u32) | (b2 << 8u32) | b3);
+};
+
+pub func:ttf_init = int32(int64: ctx_ptr, int64: file_data, uint64: file_size) {
+    wild TTFContext->: ctx = @cast_unchecked<TTFContext->>(ctx_ptr);
+    ctx[0].file_data = file_data;
+    ctx[0].file_size = file_size;
+    
+    // Parse tables
+    uint16: num_tables = raw read_u16_be(file_data, 4u64);
+    
+    uint64: table_offset = 12u64;
+    uint16: i = 0u16;
+    while (i < num_tables) {
+        uint32: tag = raw read_u32_be(file_data, table_offset);
+        uint32: offset = raw read_u32_be(file_data, table_offset + 8u64);
+        
+        // cmap = 0x636D6170
+        if (tag == 0x636D6170u32) {
+            ctx[0].cmap_offset = @cast_unchecked<int64>(offset);
+        }
+        // glyf = 0x676C7966
+        if (tag == 0x676C7966u32) {
+            ctx[0].glyf_offset = @cast_unchecked<int64>(offset);
+        }
+        // loca = 0x6C6F6361
+        if (tag == 0x6C6F6361u32) {
+            ctx[0].loca_offset = @cast_unchecked<int64>(offset);
+        }
+        // head = 0x68656164
+        if (tag == 0x68656164u32) {
+            ctx[0].head_offset = @cast_unchecked<int64>(offset);
+            ctx[0].loca_format = raw read_u16_be(file_data, @cast_unchecked<uint64>(offset) + 50u64);
+        }
+        // maxp = 0x6D617870
+        if (tag == 0x6D617870u32) {
+            ctx[0].num_glyphs = raw read_u16_be(file_data, @cast_unchecked<uint64>(offset) + 4u64);
+        }
+        
+        table_offset = table_offset + 16u64;
+        i = i + 1u16;
+    }
+    
+    pass(0i32);
+};
+
+pub func:ttf_get_glyph_index = uint16(int64: ctx_ptr, uint16: char_code) {
+    wild TTFContext->: ctx = @cast_unchecked<TTFContext->>(ctx_ptr);
+    int64: file_data = ctx[0].file_data;
+    uint64: cmap_off = @cast_unchecked<uint64>(ctx[0].cmap_offset);
+    
+    // Check cmap format
+    // cmap header: version(2), numTables(2)
+    uint16: num_tables = raw read_u16_be(file_data, cmap_off + 2u64);
+    
+    uint64: table_record_offset = cmap_off + 4u64;
+    uint64: format4_offset = 0u64;
+    
+    uint16: i = 0u16;
+    while (i < num_tables) {
+        uint16: platform = raw read_u16_be(file_data, table_record_offset);
+        uint16: encoding = raw read_u16_be(file_data, table_record_offset + 2u64);
+        uint32: sub_offset = raw read_u32_be(file_data, table_record_offset + 4u64);
+        
+        // Windows Unicode (Platform 3, Encoding 1)
+        if (platform == 3u16 && encoding == 1u16) {
+            format4_offset = cmap_off + @cast_unchecked<uint64>(sub_offset);
+        }
+        table_record_offset = table_record_offset + 8u64;
+        i = i + 1u16;
+    }
+    
+    if (format4_offset == 0u64) {
+        pass(0u16);
+    }
+    
+    uint16: format = raw read_u16_be(file_data, format4_offset);
+    if (format != 4u16) {
+        pass(0u16); // Only format 4 is supported in this simplified parser
+    }
+    
+    uint16: segCountX2 = raw read_u16_be(file_data, format4_offset + 6u64);
+    uint16: segCount = segCountX2 / 2u16;
+    
+    uint64: endCodeOffset = format4_offset + 14u64;
+    uint64: startCodeOffset = endCodeOffset + @cast_unchecked<uint64>(segCountX2) + 2u64;
+    uint64: idDeltaOffset = startCodeOffset + @cast_unchecked<uint64>(segCountX2);
+    uint64: idRangeOffsetOffset = idDeltaOffset + @cast_unchecked<uint64>(segCountX2);
+    
+    uint16: seg = 0u16;
+    while (seg < segCount) {
+        uint64: seg_idx = @cast_unchecked<uint64>(seg) * 2u64;
+        uint16: endCode = raw read_u16_be(file_data, endCodeOffset + seg_idx);
+        
+        if (endCode >= char_code) {
+            uint16: startCode = raw read_u16_be(file_data, startCodeOffset + seg_idx);
+            if (startCode <= char_code) {
+                uint16: idDelta = raw read_u16_be(file_data, idDeltaOffset + seg_idx);
+                uint16: idRangeOffset = raw read_u16_be(file_data, idRangeOffsetOffset + seg_idx);
+                
+                if (idRangeOffset == 0u16) {
+                    pass(char_code + idDelta);
+                } else {
+                    uint64: glyphIndexOffset = idRangeOffsetOffset + seg_idx + @cast_unchecked<uint64>(idRangeOffset) + @cast_unchecked<uint64>(char_code - startCode) * 2u64;
+                    uint16: glyphIndex = raw read_u16_be(file_data, glyphIndexOffset);
+                    if (glyphIndex != 0u16) {
+                        pass(glyphIndex + idDelta);
+                    }
+                    pass(0u16);
+                }
+            }
+            pass(0u16);
+        }
+        
+        seg = seg + 1u16;
+    }
+    
+    pass(0u16);
+};
+
+pub func:ttf_get_glyph_offset = int64(int64: ctx_ptr, uint16: glyph_index) {
+    wild TTFContext->: ctx = @cast_unchecked<TTFContext->>(ctx_ptr);
+    if (glyph_index >= ctx[0].num_glyphs) {
+        pass(-1i64);
+    }
+    
+    int64: file_data = ctx[0].file_data;
+    uint64: loca_off = @cast_unchecked<uint64>(ctx[0].loca_offset);
+    uint64: glyf_off = @cast_unchecked<uint64>(ctx[0].glyf_offset);
+    
+    uint64: offset = 0u64;
+    
+    if (ctx[0].loca_format == 0u16) {
+        // short format (uint16, multiplied by 2)
+        uint16: local_val = raw read_u16_be(file_data, loca_off + @cast_unchecked<uint64>(glyph_index) * 2u64);
+        offset = @cast_unchecked<uint64>(local_val) * 2u64;
+    } else {
+        // long format (uint32)
+        uint32: local_val = raw read_u32_be(file_data, loca_off + @cast_unchecked<uint64>(glyph_index) * 4u64);
+        offset = @cast_unchecked<uint64>(local_val);
+    }
+    
+    pass(@cast_unchecked<int64>(glyf_off + offset));
+};

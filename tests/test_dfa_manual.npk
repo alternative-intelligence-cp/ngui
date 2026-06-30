@@ -1,0 +1,27 @@
+use "unsafe.npk".*;
+use "core/source_map.npk".*;
+use "engine/context.npk".*;
+use "lexer/dfa_lexer.npk".*;
+use "memory/green_arena.npk".*;
+use "memory/hash_consing.npk".*;
+use "core/token.npk".*;
+use "src/markup/generated_parser.npk".*;
+
+extern "libc" {
+    func:printf = int32(string:fmt, int32:a, int32:b);
+    func:puts = int32(string:s);
+}
+
+pub func:failsafe = int32(tbb32:err) { exit(1i32); };
+
+pub func:main = int32() {
+    int32:first_elem = <-cast_unchecked<int32->>(@__lexer_table);
+    int32:second_elem = <-(cast_unchecked<int32->>(cast_unchecked<int64>(@__lexer_table) + 4i64));
+    int32:sixtieth = <-(cast_unchecked<int32->>(cast_unchecked<int64>(@__lexer_table) + (60i64 * 4i64)));
+    
+    drop printf("First elem: %d\n", first_elem, 0i32);
+    drop printf("Second elem: %d\n", second_elem, 0i32);
+    drop printf("60th elem (char 60 for state 0): %d\n", sixtieth, 0i32);
+    
+    return 0i32;
+};

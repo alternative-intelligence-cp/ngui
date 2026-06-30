@@ -1,0 +1,151 @@
+use "core/source_map.npk".*;
+use "core/ast.npk".*;
+use "memory/handle.npk".*;
+use "memory/green_arena.npk".*;
+use "engine/context.npk".*;
+use "lexer/regex/mem_primitives.npk".*;
+
+use "../core/ngui_arena.npk".*;
+use "../core/widget.npk".*;
+use "style_cascader.npk".*;
+
+
+use "generated_parser.npk".{xml_parse_start};
+pub fixed int32:AST_ELEMENT = 100i32;
+pub fixed int32:AST_ATTRIBUTE = 101i32;
+pub fixed int32:T_IDENTIFIER = 6i32;
+pub fixed int32:T_STRING = 7i32;
+use "unsafe.npk".*;
+
+extern "libc" {
+    func:puts = int32(string:s);
+}
+
+pub func:ast_to_widget = Widget->(wild RedNode->:node, StrView:src, wild GreenArena->:arena, Arena->:widget_arena, wild RedNode->:css_ast, wild GreenArena->:css_arena, string:css_source) {
+    if (node == cast_unchecked<RedNode->>(0i64)) {
+        pass(cast_unchecked<Widget->>(0i64));
+    }
+    
+    int32:kind = node->kind;
+    drop println(`AST Node Kind in ast_to_widget: &{kind}`);
+    if (kind == AST_ELEMENT) {
+        wild Widget->:w = raw widget_create();
+        
+        // Populate tag_name from XML markup if it exists (first child is usually the tag name token)
+        wild int8->:buf = cast_unchecked<int8->>(alloc(src.length + 1i64));
+        mcpy(buf, cast_unchecked<int8->>(src.data), src.length);
+        <-(cast_unchecked<int8->>(cast_unchecked<int64>(buf) + src.length)) = 0i8;
+        string:src_str = string_from_cstr(buf);
+
+        wild RedNode->:tag_child = node->first_child;
+        while (tag_child != cast_unchecked<RedNode->>(0i64) && tag_child->kind != T_IDENTIFIER) {
+            tag_child = tag_child->next_sibling;
+        }
+        if (tag_child != cast_unchecked<RedNode->>(0i64) && tag_child->kind == T_IDENTIFIER) {
+            // Need to extract the token string
+            int64:offset = tag_child->absolute_offset;
+            wild GreenNode->:gnode = raw npk_arena_get(arena, tag_child->green);
+            int64:len = cast_unchecked<int64>(gnode->width);
+            drop println(`Tag offset: &{offset}, len: &{len}`);
+            w->tag_name = string_substring(src_str, offset, offset + len);
+        }
+        
+        // Extract ID from attributes
+          wild RedNode->:attr_node = node->first_child;
+          while (attr_node != cast_unchecked<RedNode->>(0i64)) {
+              if (attr_node->kind == AST_ATTRIBUTE) {
+                  wild RedNode->:attr_name_node = attr_node->first_child;
+                  if (attr_name_node != cast_unchecked<RedNode->>(0i64) && attr_name_node->kind == T_IDENTIFIER) {
+                      wild GreenNode->:gname = raw npk_arena_get(arena, attr_name_node->green);
+                      int64:name_offset = attr_name_node->absolute_offset;
+                      int64:name_len = cast_unchecked<int64>(gname->width);
+                      string:attr_name = string_substring(src_str, name_offset, name_offset + name_len);
+                      
+                      if (string_equals(attr_name, "id")) {
+                          wild RedNode->:attr_val_node = attr_name_node->next_sibling;
+                          if (attr_val_node != cast_unchecked<RedNode->>(0i64) && attr_val_node->kind == T_STRING) {
+                              wild GreenNode->:gval = raw npk_arena_get(arena, attr_val_node->green);
+                              int64:val_offset = attr_val_node->absolute_offset;
+                              int64:val_len = cast_unchecked<int64>(gval->width);
+                              w->id = string_substring(src_str, val_offset + 1i64, val_offset + val_len - 1i64);
+                          }
+                      }
+                  }
+              }
+              attr_node = attr_node->next_sibling;
+          }        
+        
+        drop ngui_style_apply(w, css_ast, css_arena, css_source);
+
+        wild RedNode->:child = node->first_child;
+        while (child != cast_unchecked<RedNode->>(0i64)) {
+            if (child->kind == AST_ELEMENT) {
+                wild Widget->:child_w = raw ast_to_widget(child, src, arena, widget_arena, css_ast, css_arena, css_source);
+                if (child_w != cast_unchecked<Widget->>(0i64)) {
+                    MyHandle:h = raw ngui_arena_alloc(widget_arena, cast_unchecked<any->>(child_w));
+                    drop widget_add_child(w, h);
+                }
+            }
+            child = child->next_sibling;
+        }
+        if (css_ast != cast_unchecked<RedNode->>(0i64)) {
+            drop raw ngui_style_apply(w, css_ast, css_arena, css_source);
+        }
+
+        pass(w);
+    }
+    
+    pass(cast_unchecked<Widget->>(0i64));
+};
+
+pub func:ngui_parse_markup = Widget->(string:source, Arena->:widget_arena, CompactHandle<GreenNode>:stylesheet_ast, wild GreenArena->:css_arena, string:css_source) {
+    StrView:src;
+    int64:cstr = string_to_cstr(source);
+    src.data = cast_unchecked<int8->>(cstr);
+    src.length = string_length(source);
+
+    wild GreenArena->:arena = raw npk_arena_create(4096i64);
+    
+    CompactHandle<GreenNode>:real_res = raw xml_parse_start(src, arena);
+    
+    ScopedSemanticPass:spass = raw scoped_pass_begin();
+    wild ASTNode->:ast = raw npk_ast_from_green(spass.tlc, arena, real_res);
+
+    wild ASTNode->:css_ast_node = cast_unchecked<ASTNode->>(0i64);
+    int32:idx = cast_unchecked<int32>(stylesheet_ast.index);
+    drop println(`stylesheet_ast index: &{idx}`);
+    if (stylesheet_ast.index != 0u32) {
+        css_ast_node = raw npk_ast_from_green(spass.tlc, css_arena, stylesheet_ast);
+        if (css_ast_node == cast_unchecked<ASTNode->>(0i64)) {
+            drop println("npk_ast_from_green returned NULL for CSS AST!");
+        }
+    }
+
+    wild Widget->:root_widget = cast_unchecked<Widget->>(0i64);
+
+    wild RedNode->:css_red = cast_unchecked<RedNode->>(0i64);
+    if (css_ast_node != cast_unchecked<ASTNode->>(0i64)) {
+        drop println("css_ast_node is NOT NULL!");
+        css_red = css_ast_node->red;
+        if (css_red != cast_unchecked<RedNode->>(0i64)) {
+            drop println("css_red is NOT NULL!");
+        } else {
+            drop println("css_red is NULL!");
+        }
+    } else {
+        drop println("css_ast_node IS NULL!");
+    }
+
+    if (ast->red != cast_unchecked<RedNode->>(0i64)) {
+        root_widget = raw ast_to_widget(ast->red, src, arena, widget_arena, css_red, css_arena, css_source);
+    }
+
+    if (css_ast_node != cast_unchecked<ASTNode->>(0i64)) {
+        drop dalloc(cast_unchecked<any->>(css_ast_node));
+    }
+    drop dalloc(cast_unchecked<any->>(ast));
+    drop scoped_pass_destroy(spass);
+    drop npk_arena_teardown(arena);
+
+    pass(root_widget);
+};

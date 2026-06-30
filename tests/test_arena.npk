@@ -1,0 +1,43 @@
+use "../src/core/ngui_arena.npk".*;
+
+pub struct:TestWidget = {
+    int32:x;
+    int32:y;
+};
+
+pub func:test_arena_alloc_free_get = int64() {
+    wild Arena->:arena = raw my_arena_create(4i64);
+    Arena->:arena_ptr = arena;
+    defer { free(arena); }
+    
+    // Allocate TestWidget on heap so we can store its pointer
+    wild TestWidget->:w1 = alloc(@sizeof(TestWidget)) => TestWidget->;
+    defer { free(w1); }
+    w1->x = 10i32;
+    w1->y = 20i32;
+    any->:item1 = w1 => any->;
+    
+    MyHandle:h1 = raw ngui_arena_alloc(arena_ptr, item1);
+    
+    any->:got_w1_any = raw ngui_arena_get(arena_ptr, h1);
+    
+    TestWidget->:got_w1 = @cast_unchecked<TestWidget->>(got_w1_any);
+    if (got_w1->x != 10i32) {
+        pass(1i64);
+    }
+    if (got_w1->y != 20i32) {
+        pass(2i64);
+    }
+    
+    int64:d1 = raw ngui_arena_destroy(arena_ptr);
+    pass(0i64);
+};
+
+pub func:main = int32() {
+    int64:ignored = raw test_arena_alloc_free_get();
+    exit(ignored => int32);
+};
+
+func:failsafe = int32(tbb32:err_code) {
+    exit(err_code => int32);
+};

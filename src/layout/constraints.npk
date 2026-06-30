@@ -1,0 +1,11 @@
+use "math.npk".*;
+
+pub struct:Constraints = {
+    LayoutUnit: min_width;
+    LayoutUnit: max_width;
+    LayoutUnit: exact_width;
+    
+    LayoutUnit: min_height;
+    LayoutUnit: max_height;
+    LayoutUnit: exact_height;
+};

@@ -1,0 +1,11 @@
+pub struct:LayoutUnit = {
+    fix256: val;
+};
+
+pub func:layout_add = int32(int64: a_ptr, int64: b_ptr, int64: out_ptr) {
+    (@cast_unchecked<LayoutUnit->>(out_ptr))[0].val = (@cast_unchecked<LayoutUnit->>(a_ptr))[0].val + (@cast_unchecked<LayoutUnit->>(b_ptr))[0].val;
+    pass(0i32);
+};
+
+pub func:failsafe = int32(tbb32:err) { exit(1i32); };
+pub func:main = int32() { exit(0i32); };

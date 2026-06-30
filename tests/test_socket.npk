@@ -1,0 +1,21 @@
+use "../src/platform/linux/socket.npk".*;
+
+extern "libc" {
+    func:printf = int32(string:fmt);
+    func:close = int32(int32:fd);
+}
+
+pub func:main = int32() {
+    int32: fd = raw connect_wayland();
+    if (fd < 0i32) {
+        int32: _d = printf("Wayland connection failed (expected if not in Wayland).\n\0");
+    } else {
+        int32: _d = printf("Wayland connected successfully!\n\0");
+        int32: _d2 = close(fd);
+    }
+    exit(0i32);
+};
+
+pub func:failsafe = int32(tbb32:err) {
+    exit(1i32);
+};

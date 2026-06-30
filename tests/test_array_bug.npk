@@ -1,0 +1,24 @@
+pub func:main = int32() {
+    int64->:p = alloc(8i64) => int64->;
+    
+    // Check value of p BEFORE assignment
+    int64:before = @cast_unchecked<int64>(p);
+    
+    p[1] = 42i64;
+    
+    // Check value of p AFTER assignment
+    int64:after = @cast_unchecked<int64>(p);
+    
+    int32:res = 0i32;
+    if (before != after) {
+        // IT OVERWROTE P!
+        res = 99i32;
+    }
+    
+    free(p);
+    exit(res);
+};
+
+func:failsafe = int32(tbb32:err_code) {
+    exit(err_code => int32);
+};

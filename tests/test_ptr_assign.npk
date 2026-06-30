@@ -1,0 +1,29 @@
+pub struct:Test = {
+    wild int64->:ptr;
+};
+
+pub func:main = int32() {
+    wild int64->:p = alloc(8i64) => int64->;
+    p[0] = 42i64;
+    wild Test->:t = alloc(@sizeof(Test)) => Test->;
+    t->ptr = p;
+    
+    int64:p_val = @cast_unchecked<int64>(p);
+    int64:t_ptr_val = @cast_unchecked<int64>(t->ptr);
+    
+    int32:res = 1i32;
+    if (p_val == t_ptr_val) {
+        res = 0i32;
+    }
+    
+    // Bypass leak check for p by escaping it
+    any->:esc = p => any->;
+    
+    free(t);
+    
+    exit(res);
+};
+
+func:failsafe = int32(tbb32:err_code) {
+    exit(err_code => int32);
+};

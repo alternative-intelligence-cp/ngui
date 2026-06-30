@@ -1,0 +1,6 @@
+use "../src/render/text/raster.npk".*;
+
+pub func:failsafe = int32(tbb32:err) { exit(1i32); };
+pub func:main = int32() {
+    exit(0i32);
+};

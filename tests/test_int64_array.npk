@@ -1,0 +1,22 @@
+pub func:main = int32() {
+    wild int64->:arr = alloc(24i64) => int64->;
+    defer { free(arr); }
+    
+    wild int64->:p = alloc(8i64) => int64->;
+    defer { free(p); }
+    
+    arr[0] = @cast_unchecked<int64>(p);
+    
+    int64:p_val = @cast_unchecked<int64>(p);
+    int64:arr_val = arr[0];
+    
+    if (p_val != arr_val) {
+        exit(99i32);
+    }
+    
+    exit(0i32);
+};
+
+func:failsafe = int32(tbb32:err_code) {
+    exit(err_code => int32);
+};
