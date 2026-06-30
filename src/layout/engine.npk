@@ -1,38 +1,82 @@
-use "math.npk".*;
-use "constraints.npk".*;
-use "../core/ngui_arena.npk".*;
-use "../core/widget.npk".*;
+use "handle.npk".*;
+use "core/widget.npk".*;
+use "layout/math.npk".*;
+use "layout/constraints.npk".*;
 
-pub func:measure_pass = int32(Arena->: arena, MyHandle: handle, int64: constraints_ptr) {
-    wild any->: w_any = raw ngui_arena_get(arena, handle);
-    int64: w_ptr = @cast_unchecked<int64>(w_any);
-    
-    // We update widget layout units
-    wild Constraints->: c = @cast_unchecked<Constraints->>(constraints_ptr);
-    
-    (@cast_unchecked<Widget->>(w_ptr))->width = c[0].max_width;
-    (@cast_unchecked<Widget->>(w_ptr))->height = c[0].max_height;
-    
-    // Traverse children via DList
-    int64: current_node = (@cast_unchecked<Widget->>(w_ptr))->children_list;
-    if (current_node != 0i64) {
-        wild int64->: dlist_ptr = @cast_unchecked<int64->>(current_node);
-        int64: head = dlist_ptr[0];
-        int64: curr = head;
-        while (curr != 0i64) {
-            wild int64->: node = @cast_unchecked<int64->>(curr);
-            int64: child_pack = node[0];
-            MyHandle: child_handle = raw my_handle_unpack(child_pack);
-            
-            // recurse (for now passing same constraints)
-            int32: res = raw measure_pass(arena, child_handle, constraints_ptr);
-            if (res < 0i32) {
-                pass(-1i32);
-            }
-            
-            curr = node[1]; // next
-        }
+// Deterministic recursive layout measurement pass using fix256 math.
+pub func:measure_pass = NIL(int64:arena, Handle<Widget>:root, Constraints:bounds) {
+    int64:h_raw = @cast_unchecked<int64>(root);
+    int64:p = raw HandleArena.deref(h_raw);
+    if (p == 0i64) {
+        pass NIL;
     }
     
-    pass(0i32);
+    Widget->:w = @cast_unchecked<Widget-> >(p);
+    
+    // Check if widget width/height are errors, trap!
+    if (raw is_err(w->width) || raw is_err(w->height)) {
+        // Sticky ERR Sentinel!
+        // The failsafe endpoint in the event loop should catch this
+        pass NIL;
+    }
+    
+    // Apply constraints to this widget
+    Constraints:clamped = raw constraints_clamp(bounds, w->width, w->height);
+    w->width = clamped.max_width;
+    w->height = clamped.max_height;
+    
+    // Recursively measure children
+    ChildList->:children = w->children;
+    Handle<Widget>->:items = children->items;
+    
+    int64:i = 0i64;
+    while (i < children->count) {
+        Handle<Widget>:child = items[i];
+        // We pass 'bounds' for now, but a real flexbox engine would distribute space
+        raw measure_pass(arena, child, bounds);
+        i = i + 1i64;
+    }
+    
+    pass NIL;
+};
+
+// Hit test to find the deepest widget containing (x, y)
+pub func:hit_test = Handle<Widget>(int64:arena, Handle<Widget>:root, LayoutUnit:x, LayoutUnit:y) {
+    int64:h_raw = @cast_unchecked<int64>(root);
+    int64:p = raw HandleArena.deref(h_raw);
+    if (p == 0i64) {
+        pass @cast_unchecked<Handle<Widget> >(0i64);
+    }
+    
+    Widget->:w = @cast_unchecked<Widget-> >(p);
+    
+    // Check bounds using int64 casting (avoiding compiler fix256 cmp bugs)
+    int64:px = raw lu_to_int(x);
+    int64:py = raw lu_to_int(y);
+    int64:wx = raw lu_to_int(w->x);
+    int64:wy = raw lu_to_int(w->y);
+    int64:ww = raw lu_to_int(w->width);
+    int64:wh = raw lu_to_int(w->height);
+    
+    if (px < wx || py < wy || px > wx + ww || py > wy + wh) {
+        pass @cast_unchecked<Handle<Widget> >(0i64);
+    }
+    
+    // In a real flexbox engine we would respect Z-Index sorting here.
+    // For now, traverse children in reverse order (assuming last added = highest Z)
+    ChildList->:children = w->children;
+    Handle<Widget>->:items = children->items;
+    
+    int64:i = children->count - 1i64;
+    while (i >= 0i64) {
+        Handle<Widget>:child = items[i];
+        Handle<Widget>:hit = raw hit_test(arena, child, x, y);
+        int64:hit_raw = @cast_unchecked<int64>(hit);
+        if (hit_raw != 0i64) {
+            pass hit;
+        }
+        i = i - 1i64;
+    }
+    
+    pass root;
 };

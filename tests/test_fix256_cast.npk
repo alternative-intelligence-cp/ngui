@@ -1,0 +1,13 @@
+use "layout/math.npk".*;
+
+pub func:failsafe = int32(tbb32:err) { exit 1i32; };
+
+pub func:main = int32() {
+    fix256:v1 = @cast_unchecked<fix256>(100i64);
+    int64:v1_int = @cast_unchecked<int64>(v1);
+    
+    if (v1_int > 50i64) {
+        exit 0i32;
+    }
+    exit 1i32;
+};

@@ -1,7 +1,16 @@
-use "../src/layout/constraints.npk".*;
+use "layout/math.npk".*;
+use "layout/constraints.npk".*;
 
-pub func:failsafe = int32(tbb32:err) { exit(1i32); };
+pub func:failsafe = int32(tbb32:err) { exit 1i32; };
+
 pub func:main = int32() {
-    Constraints: c;
-    exit(0i32);
+    LayoutUnit:w = raw lu_new(@cast_unchecked<fix256>(100i64));
+    LayoutUnit:h = raw lu_new(@cast_unchecked<fix256>(50i64));
+    
+    Constraints:c = raw constraints_tight(w, h);
+    
+    // Test loose constraints
+    Constraints:c2 = raw constraints_loose(w, h);
+    
+    exit 0i32;
 };

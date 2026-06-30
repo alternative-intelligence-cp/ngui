@@ -1,0 +1,7 @@
+pub func:failsafe = int32(tbb32:err) { pass 1i32; };
+
+pub func:main = int32() {
+    fix256:val = 100.5fix256;
+    fix256:val2 = val + 10.0fix256;
+    pass 0i32;
+};

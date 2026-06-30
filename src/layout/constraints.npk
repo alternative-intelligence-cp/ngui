@@ -1,11 +1,57 @@
-use "math.npk".*;
+use "layout/math.npk".*;
 
 pub struct:Constraints = {
     LayoutUnit: min_width;
     LayoutUnit: max_width;
-    LayoutUnit: exact_width;
-    
     LayoutUnit: min_height;
     LayoutUnit: max_height;
-    LayoutUnit: exact_height;
+};
+
+// Create a new strict set of constraints where min == max
+pub func:constraints_tight = Constraints(LayoutUnit:width, LayoutUnit:height) {
+    pass Constraints{
+        min_width: width,
+        max_width: width,
+        min_height: height,
+        max_height: height
+    };
+};
+
+// Create a flexible set of constraints
+pub func:constraints_loose = Constraints(LayoutUnit:max_width, LayoutUnit:max_height) {
+    pass Constraints{
+        min_width: raw lu_new(@cast_unchecked<fix256>(0i64)),
+        max_width: max_width,
+        min_height: raw lu_new(@cast_unchecked<fix256>(0i64)),
+        max_height: max_height
+    };
+};
+
+// Clamp a given dimension against constraints
+pub func:constraints_clamp = Constraints(Constraints:c, LayoutUnit:width, LayoutUnit:height) {
+    LayoutUnit:w = width;
+    LayoutUnit:h = height;
+    
+    // Width constraints
+    if (raw lu_lt(w, c.min_width)) {
+        w = c.min_width;
+    }
+    if (raw lu_gt(w, c.max_width)) {
+        w = c.max_width;
+    }
+    
+    // Height constraints
+    if (raw lu_lt(h, c.min_height)) {
+        h = c.min_height;
+    }
+    if (raw lu_gt(h, c.max_height)) {
+        h = c.max_height;
+    }
+    
+    pass Constraints{
+        min_width: w,
+        max_width: w,
+        min_height: h,
+        max_height: h
+    };
 };

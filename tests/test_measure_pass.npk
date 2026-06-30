@@ -1,0 +1,48 @@
+use "handle.npk".*;
+use "core/widget.npk".*;
+use "layout/math.npk".*;
+use "layout/constraints.npk".*;
+use "layout/engine.npk".*;
+
+pub func:failsafe = int32(tbb32:err) { exit 1i32; };
+
+pub func:main = int32() {
+    int64:arena = raw HandleArena.create();
+    
+    // Create root widget
+    int64:root_raw = raw HandleArena.alloc(arena, @sizeof(Widget));
+    Handle<Widget>:root_h = @cast_unchecked<Handle<Widget> >(root_raw);
+    int64:root_p = raw HandleArena.deref(root_raw);
+    Widget->:root_w = @cast_unchecked<Widget-> >(root_p);
+    raw widget_init(root_w);
+    
+    // Create child widget
+    int64:child_raw = raw HandleArena.alloc(arena, @sizeof(Widget));
+    Handle<Widget>:child_h = @cast_unchecked<Handle<Widget> >(child_raw);
+    int64:child_p = raw HandleArena.deref(child_raw);
+    Widget->:child_w = @cast_unchecked<Widget-> >(child_p);
+    raw widget_init(child_w);
+    
+    // Set custom width/height to check if measure_pass overrides it via constraints
+    child_w->width = raw lu_new(@cast_unchecked<fix256>(50i64));
+    child_w->height = raw lu_new(@cast_unchecked<fix256>(50i64));
+    
+    raw widget_add_child(root_w, child_h);
+    
+    // Create Constraints
+    LayoutUnit:w_const = raw lu_new(@cast_unchecked<fix256>(100i64));
+    LayoutUnit:h_const = raw lu_new(@cast_unchecked<fix256>(100i64));
+    Constraints:bounds = raw constraints_tight(w_const, h_const);
+    
+    // Run layout engine
+    raw measure_pass(arena, root_h, bounds);
+    
+    // Cleanup
+    raw widget_destroy(root_w);
+    raw widget_destroy(child_w);
+    raw HandleArena.free(root_raw);
+    raw HandleArena.free(child_raw);
+    raw HandleArena.destroy(arena);
+    
+    exit 0i32;
+};

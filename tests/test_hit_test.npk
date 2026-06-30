@@ -1,0 +1,60 @@
+use "handle.npk".*;
+use "core/widget.npk".*;
+use "layout/math.npk".*;
+use "layout/constraints.npk".*;
+use "layout/engine.npk".*;
+
+pub func:failsafe = int32(tbb32:err) { exit 1i32; };
+
+pub func:main = int32() {
+    int64:arena = raw HandleArena.create();
+    
+    // Create root widget (100x100)
+    int64:root_raw = raw HandleArena.alloc(arena, @sizeof(Widget));
+    Handle<Widget>:root_h = @cast_unchecked<Handle<Widget> >(root_raw);
+    int64:root_p = raw HandleArena.deref(root_raw);
+    Widget->:root_w = @cast_unchecked<Widget-> >(root_p);
+    raw widget_init(root_w);
+    root_w->width = raw lu_new(@cast_unchecked<fix256>(100i64));
+    root_w->height = raw lu_new(@cast_unchecked<fix256>(100i64));
+    
+    // Create child widget (50x50, at 25,25)
+    int64:child_raw = raw HandleArena.alloc(arena, @sizeof(Widget));
+    Handle<Widget>:child_h = @cast_unchecked<Handle<Widget> >(child_raw);
+    int64:child_p = raw HandleArena.deref(child_raw);
+    Widget->:child_w = @cast_unchecked<Widget-> >(child_p);
+    raw widget_init(child_w);
+    child_w->x = raw lu_new(@cast_unchecked<fix256>(25i64));
+    child_w->y = raw lu_new(@cast_unchecked<fix256>(25i64));
+    child_w->width = raw lu_new(@cast_unchecked<fix256>(50i64));
+    child_w->height = raw lu_new(@cast_unchecked<fix256>(50i64));
+    
+    raw widget_add_child(root_w, child_h);
+    
+    // Test point (10, 10) - should hit root
+    LayoutUnit:px1 = raw lu_new(@cast_unchecked<fix256>(10i64));
+    LayoutUnit:py1 = raw lu_new(@cast_unchecked<fix256>(10i64));
+    Handle<Widget>:hit1 = raw hit_test(arena, root_h, px1, py1);
+    
+    if (@cast_unchecked<int64>(hit1) != root_raw) {
+        exit 1i32;
+    }
+    
+    // Test point (30, 30) - should hit child
+    LayoutUnit:px2 = raw lu_new(@cast_unchecked<fix256>(30i64));
+    LayoutUnit:py2 = raw lu_new(@cast_unchecked<fix256>(30i64));
+    Handle<Widget>:hit2 = raw hit_test(arena, root_h, px2, py2);
+    
+    if (@cast_unchecked<int64>(hit2) != child_raw) {
+        exit 2i32;
+    }
+    
+    // Cleanup
+    raw widget_destroy(root_w);
+    raw widget_destroy(child_w);
+    raw HandleArena.free(root_raw);
+    raw HandleArena.free(child_raw);
+    raw HandleArena.destroy(arena);
+    
+    exit 0i32;
+};

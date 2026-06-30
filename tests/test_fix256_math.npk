@@ -1,0 +1,22 @@
+use "layout/math.npk".*;
+
+pub func:failsafe = int32(tbb32:err) { exit 1i32; };
+
+pub func:main = int32() {
+    fix256:v1 = @cast_unchecked<fix256>(10i64);
+    fix256:v2 = @cast_unchecked<fix256>(5i64);
+    fix256:v3 = @cast_unchecked<fix256>(0i64);
+    
+    LayoutUnit:a = raw lu_new(v1);
+    LayoutUnit:b = raw lu_new(v2);
+    
+    LayoutUnit:c = raw lu_add(a, b);
+    LayoutUnit:d = raw lu_div(a, raw lu_new(v3));
+    
+    bool:is_d_err = raw is_err(d);
+    if (is_d_err == false) {
+        exit 1i32;
+    }
+    
+    exit 0i32;
+};

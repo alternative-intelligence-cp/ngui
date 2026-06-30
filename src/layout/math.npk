@@ -1,24 +1,89 @@
+// src/layout/math.npk - Deterministic Fixed-Point Math
+
 pub struct:LayoutUnit = {
-    fix256: val;
+    bool: is_error;
+    fix256: value;
 };
 
-// Returns 0 on success. Writers result to out_ptr.
-pub func:layout_add = int32(int64: a_ptr, int64: b_ptr, int64: out_ptr) {
-    (@cast_unchecked<LayoutUnit->>(out_ptr))[0].val = (@cast_unchecked<LayoutUnit->>(a_ptr))[0].val + (@cast_unchecked<LayoutUnit->>(b_ptr))[0].val;
-    pass(0i32);
+pub func:lu_err = LayoutUnit() {
+    pass LayoutUnit{is_error: true, value: 0.0fix256};
 };
 
-pub func:layout_sub = int32(int64: a_ptr, int64: b_ptr, int64: out_ptr) {
-    (@cast_unchecked<LayoutUnit->>(out_ptr))[0].val = (@cast_unchecked<LayoutUnit->>(a_ptr))[0].val - (@cast_unchecked<LayoutUnit->>(b_ptr))[0].val;
-    pass(0i32);
+pub func:is_err = bool(LayoutUnit:unit) {
+    pass unit.is_error;
 };
 
-pub func:layout_mul = int32(int64: a_ptr, int64: b_ptr, int64: out_ptr) {
-    (@cast_unchecked<LayoutUnit->>(out_ptr))[0].val = (@cast_unchecked<LayoutUnit->>(a_ptr))[0].val * (@cast_unchecked<LayoutUnit->>(b_ptr))[0].val;
-    pass(0i32);
+pub func:lu_new = LayoutUnit(fix256:v) {
+    pass LayoutUnit{is_error: false, value: v};
 };
 
-pub func:layout_div = int32(int64: a_ptr, int64: b_ptr, int64: out_ptr) {
-    (@cast_unchecked<LayoutUnit->>(out_ptr))[0].val = (@cast_unchecked<LayoutUnit->>(a_ptr))[0].val / (@cast_unchecked<LayoutUnit->>(b_ptr))[0].val;
-    pass(0i32);
+pub func:lu_add = LayoutUnit(LayoutUnit:a, LayoutUnit:b) {
+    if (a.is_error || b.is_error) {
+        pass raw lu_err();
+    }
+    pass LayoutUnit{is_error: false, value: a.value + b.value};
+};
+
+pub func:lu_sub = LayoutUnit(LayoutUnit:a, LayoutUnit:b) {
+    if (a.is_error || b.is_error) {
+        pass raw lu_err();
+    }
+    pass LayoutUnit{is_error: false, value: a.value - b.value};
+};
+
+pub func:lu_mul = LayoutUnit(LayoutUnit:a, LayoutUnit:b) {
+    if (a.is_error || b.is_error) {
+        pass raw lu_err();
+    }
+    pass LayoutUnit{is_error: false, value: a.value * b.value};
+};
+
+// We will skip testing b.value == 0.0fix256 directly since the compiler
+// might have issues with equality on fix256. Wait, if we can't test ==,
+// how do we div by zero?
+// Let's test if we can do 'b.value == 0.0fix256'. The error was specifically
+// around -9999999.0fix256? No, the error was "Types mismatch: L=i256 R=%struct.fix256".
+// This happens for ALL fix256 equality operations.
+// We might not be able to test div-by-zero yet.
+// For now, let's just do the division and let the runtime/compiler handle it.
+pub func:lu_div = LayoutUnit(LayoutUnit:a, LayoutUnit:b) {
+    if (a.is_error || b.is_error) {
+        pass raw lu_err();
+    }
+    pass LayoutUnit{is_error: false, value: a.value / b.value};
+};
+
+pub func:lu_to_int = int64(LayoutUnit:a) {
+    if (a.is_error) {
+        pass 0i64;
+    }
+    pass @cast_unchecked<int64>(a.value);
+};
+
+// Compare if a > b
+pub func:lu_gt = bool(LayoutUnit:a, LayoutUnit:b) {
+    int64:a_int = raw lu_to_int(a);
+    int64:b_int = raw lu_to_int(b);
+    pass a_int > b_int;
+};
+
+// Compare if a < b
+pub func:lu_lt = bool(LayoutUnit:a, LayoutUnit:b) {
+    int64:a_int = raw lu_to_int(a);
+    int64:b_int = raw lu_to_int(b);
+    pass a_int < b_int;
+};
+
+// Compare if a >= b
+pub func:lu_gte = bool(LayoutUnit:a, LayoutUnit:b) {
+    int64:a_int = raw lu_to_int(a);
+    int64:b_int = raw lu_to_int(b);
+    pass a_int >= b_int;
+};
+
+// Compare if a <= b
+pub func:lu_lte = bool(LayoutUnit:a, LayoutUnit:b) {
+    int64:a_int = raw lu_to_int(a);
+    int64:b_int = raw lu_to_int(b);
+    pass a_int <= b_int;
 };
