@@ -48,7 +48,7 @@ pub func:wl_read_message = int32(int32: fd, int64: data_ptr, uint64: buf_size, i
     pass(@cast_unchecked<int32>(res));
 };
 
-pub func:wl_write_message = int32(int32: fd, int64: buffer, uint64: buf_size) {
-    int64: res = raw sys!!(44i64, @cast_unchecked<int64>(fd), buffer, @cast_unchecked<int64>(buf_size), 0i64, 0i64, 0i64);
+pub func:wl_write_message = int32(int32: fd, int64: data_ptr, uint64: buf_size) {
+    int64: res = raw sys!!(44i64, @cast_unchecked<int64>(fd), data_ptr, @cast_unchecked<int64>(buf_size), 0i64, 0i64, 0i64);
     pass(@cast_unchecked<int32>(res));
 };

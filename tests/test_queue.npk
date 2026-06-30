@@ -1,4 +1,4 @@
-use "event/queue.npk".*;
+use "../src/event/queue.npk".*;
 
 pub func:main = int32() {
     MPSCQueue->:q = raw mpsc_create(16i64);

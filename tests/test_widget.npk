@@ -1,8 +1,13 @@
 use "../src/core/widget.npk".*;
+use "handle.npk".*;
 
 pub func:failsafe = int32(tbb32:err) { exit(1i32); };
 pub func:main = int32() {
-    wild Widget->: w = raw widget_create();
+    int64:arena = npk_handle_arena_create();
+    int64:hw = npk_handle_alloc(arena, 256i64);
+    Widget->: w = cast_unchecked<Widget->>(npk_handle_deref(hw));
+    raw widget_init(w);
     raw widget_destroy(w);
+    drop npk_handle_arena_destroy(arena);
     exit(0i32);
 };

@@ -1,0 +1,68 @@
+use "api/builder.npk".*;
+use "api/combinators.npk".*;
+use "lexer/dfa_builder.npk".*;
+use "api/generator.npk".*;
+
+// Lexical Token Kinds
+fixed int32:T_LBRACE     = 1i32; // {
+fixed int32:T_RBRACE     = 2i32; // }
+fixed int32:T_LANGLE     = 3i32; // <
+fixed int32:T_RANGLE     = 4i32; // >
+fixed int32:T_SLASH      = 5i32; // /
+fixed int32:T_IDENTIFIER = 6i32; // alphanumeric
+fixed int32:T_STRING     = 7i32; // "..."
+fixed int32:T_EQUALS     = 8i32; // =
+
+// AST Node Kinds
+fixed int32:AST_ELEMENT   = 100i32;
+fixed int32:AST_ATTRIBUTE = 101i32;
+
+pub func:ngui_markup_parser_create = int64() {
+    int64:g = raw npk_grammar_create();
+
+    // Forward declare element for recursion
+    int32:r_element = raw npk_rule_forward(g);
+
+    // Lexer regexes
+    int32:r_lbrace = raw npk_rule_regex(g, T_LBRACE, "\\{");
+    int32:r_rbrace = raw npk_rule_regex(g, T_RBRACE, "\\}");
+    int32:r_langle = raw npk_rule_regex(g, T_LANGLE, "<");
+    int32:r_rangle = raw npk_rule_regex(g, T_RANGLE, ">");
+    int32:r_slash  = raw npk_rule_regex(g, T_SLASH, "/");
+    int32:r_ident  = raw npk_rule_regex(g, T_IDENTIFIER, "[a-zA-Z_][a-zA-Z0-9_\\-]*");
+    int32:r_string = raw npk_rule_regex(g, T_STRING, "\"([^\"])*\"");
+    int32:r_equals = raw npk_rule_regex(g, T_EQUALS, "=");
+
+    // Attribute: IDENTIFIER "=" STRING
+    int32[3]:attr_seq = [r_ident, r_equals, r_string];
+    int32:r_attribute = raw npk_rule_seq(g, cast_unchecked<int32->>(@attr_seq), 3i32);
+    drop npk_grammar_bind(g, r_attribute, AST_ATTRIBUTE);
+
+    // Opening Tag: "<" IDENTIFIER [Attribute]* ">"
+    int32[4]:open_seq = [r_langle, r_ident, raw npk_rule_repeat(g, r_attribute, 0i32), r_rangle];
+    int32:r_open_tag = raw npk_rule_seq(g, cast_unchecked<int32->>(@open_seq), 4i32);
+
+    // Closing Tag: "<" "/" IDENTIFIER ">"
+    int32[4]:close_seq = [r_langle, r_slash, r_ident, r_rangle];
+    int32:r_close_tag = raw npk_rule_seq(g, cast_unchecked<int32->>(@close_seq), 4i32);
+
+    // Self-Closing Tag: "<" IDENTIFIER [Attribute]* "/" ">"
+    int32[5]:self_close_seq = [r_langle, r_ident, raw npk_rule_repeat(g, r_attribute, 0i32), r_slash, r_rangle];
+    int32:r_self_close = raw npk_rule_seq(g, cast_unchecked<int32->>(@self_close_seq), 5i32);
+
+    // Element with children: OpenTag [Element]* CloseTag
+    int32[3]:elem_with_children_seq = [r_open_tag, raw npk_rule_repeat(g, r_element, 0i32), r_close_tag];
+    int32:r_elem_with_children = raw npk_rule_seq(g, cast_unchecked<int32->>(@elem_with_children_seq), 3i32);
+
+    // Element: SelfClose | ElementWithChildren
+    int32[2]:elem_choices = [r_self_close, r_elem_with_children];
+    int32:actual_r_element = raw npk_rule_choice(g, cast_unchecked<int32->>(@elem_choices), 2i32);
+    drop npk_rule_define(g, r_element, actual_r_element);
+    drop npk_grammar_bind(g, r_element, AST_ELEMENT);
+
+    drop npk_grammar_compile_lexer(g);
+
+    drop npk_grammar_emit_static_parser(g, "src/markup/generated_parser.npk");
+
+    pass(g);
+};

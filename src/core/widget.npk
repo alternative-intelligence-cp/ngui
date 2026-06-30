@@ -5,14 +5,14 @@ use "a11y.npk".*;
 pub struct:ChildList = {
     int64:capacity;
     int64:count;
-    Handle<Widget>->:items;
+    int64->:items;
 };
 
 pub func:child_list_create = ChildList->(int64:initial_capacity) {
     int64:cap = initial_capacity;
     if (cap <= 0i64) { cap = 4i64; }
     
-    wild Handle<Widget>->:items_ptr = alloc(cap * 8i64) => Handle<Widget>->;
+    wild int64->:items_ptr = alloc(cap * 8i64) => int64->;
     wild ChildList->:list = alloc(24i64) => ChildList->;
     list->capacity = cap;
     list->count = 0i64;
@@ -23,12 +23,12 @@ pub func:child_list_create = ChildList->(int64:initial_capacity) {
 pub func:child_list_push = NIL(ChildList->:list, Handle<Widget>:item) {
     if (list->count >= list->capacity) {
         int64:new_cap = list->capacity * 2i64;
-        wild Handle<Widget>->:new_items = ralloc(list->items, new_cap * 8i64) => Handle<Widget>->;
+        wild int64->:new_items = ralloc(list->items, new_cap * 8i64) => int64->;
         list->capacity = new_cap;
         list->items = new_items;
     }
-    Handle<Widget>->:ptr = list->items;
-    ptr[list->count] = item;
+    int64->:ptr = list->items;
+    ptr[list->count] = cast_unchecked<int64>(item);
     list->count = list->count + 1i64;
     pass(NIL);
 };
@@ -36,7 +36,7 @@ pub func:child_list_push = NIL(ChildList->:list, Handle<Widget>:item) {
 pub func:child_list_remove = NIL(ChildList->:list, int64:index) {
     if (index < 0i64 || index >= list->count) { fail(-1i32); }
     int64:i = index;
-    Handle<Widget>->:ptr = list->items;
+    int64->:ptr = list->items;
     while (i < list->count - 1i64) {
         ptr[i] = ptr[i + 1i64];
         i = i + 1i64;
@@ -89,12 +89,14 @@ pub func:widget_add_child = NIL(Widget->:parent, Handle<Widget>:child_handle) {
 
 pub func:widget_remove_child = NIL(Widget->:parent, Handle<Widget>:child_handle) {
     ChildList->:list = parent->children;
-    Handle<Widget>->:ptr = list->items;
+    int64->:ptr = list->items;
     int64:i = 0i64;
     bool:found = false;
     
     while (i < list->count) {
-        if (ptr[i] == child_handle) {
+        int64:p_val = ptr[i];
+        int64:c_val = cast_unchecked<int64>(child_handle);
+        if (p_val == c_val) {
             found = true;
             break;
         }

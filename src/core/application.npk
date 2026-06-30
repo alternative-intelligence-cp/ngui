@@ -1,4 +1,4 @@
-use "ngui_arena.npk".*;
+// use "ngui_arena.npk".*;
 use "widget.npk".*;
 use "../markup/parser.npk".*;
 use "unsafe.npk".*;
@@ -18,13 +18,13 @@ use "engine/execute.npk".{npk_parse};
 use "lexer/dfa_lexer.npk".{StrView};
 use "memory/green_arena.npk".{GreenArena, npk_arena_create_int64, npk_arena_teardown, npk_arena_push, npk_arena_get};
 use "core/green_node.npk".{GreenNode};
-use "memory/handle.npk".{CompactHandle};
+use "handle.npk".{CompactHandle};
 
 GreenArena:__dummy_arena_workaround;
 
 pub struct:Application = {
-    Arena->:widget_arena;
-    Widget->:root_widget;
+    int64:widget_arena;
+    Handle<Widget>:root_widget;
     string:last_markup;
     string:markup_file_path;
     int64:css_grammar_handle;
@@ -35,8 +35,8 @@ pub struct:Application = {
 
 pub func:application_create = Application->() {
     wild Application->:app = alloc(@sizeof(Application)) => Application->;
-    app->widget_arena = raw my_arena_create(4096i64);
-    app->root_widget = cast_unchecked<Widget->>(0i64);
+    app->widget_arena = npk_handle_arena_create();
+    app->root_widget = cast_unchecked<Handle<Widget>>(0i64);
     app->last_markup = "";
     app->markup_file_path = "";
     app->css_grammar_handle = 0i64;
@@ -79,16 +79,17 @@ pub func:application_load_stylesheet = bool(Application->:app, string:css_source
 };
 
 pub func:application_load_markup = bool(Application->:app, string:markup_source) {
-    if (app->root_widget != cast_unchecked<Widget->>(0i64)) {
-        drop widget_destroy(app->root_widget);
-        drop ngui_arena_destroy(app->widget_arena);
-        app->widget_arena = raw my_arena_create(4096i64);
+    if (cast_unchecked<int64>(app->root_widget) != 0i64) {
+        Widget->:w = cast_unchecked<Widget->>(npk_handle_deref(cast_unchecked<int64>(app->root_widget)));
+        if (w != cast_unchecked<Widget->>(0i64)) { drop widget_destroy(w); }
+        drop npk_handle_arena_destroy(app->widget_arena);
+        app->widget_arena = npk_handle_arena_create();
     }
     
     app->last_markup = markup_source;
     string:local_css = app->css_source;
     app->root_widget = raw ngui_parse_markup(markup_source, app->widget_arena, app->stylesheet_ast, cast_unchecked<GreenArena->>(app->css_arena), local_css);
-    pass(app->root_widget != cast_unchecked<Widget->>(0i64));
+    pass(cast_unchecked<int64>(app->root_widget) != 0i64);
 };
 
 pub func:application_load_markup_file = bool(Application->:app, string:file_path) {
@@ -152,11 +153,12 @@ pub func:application_reload_ui = bool(Application->:app) {
 };
 
 pub func:application_destroy = NIL(Application->:app) {
-    if (app->root_widget != cast_unchecked<Widget->>(0i64)) {
-        drop widget_destroy(app->root_widget);
+    if (cast_unchecked<int64>(app->root_widget) != 0i64) {
+        Widget->:w = cast_unchecked<Widget->>(npk_handle_deref(cast_unchecked<int64>(app->root_widget)));
+        if (w != cast_unchecked<Widget->>(0i64)) { drop widget_destroy(w); }
     }
-    if (app->widget_arena != cast_unchecked<Arena->>(0i64)) {
-        drop ngui_arena_destroy(app->widget_arena);
+    if (app->widget_arena != 0i64) {
+        drop npk_handle_arena_destroy(app->widget_arena);
     }
     if (app->css_arena != 0i64) {
         drop npk_arena_teardown(cast_unchecked<GreenArena->>(app->css_arena));

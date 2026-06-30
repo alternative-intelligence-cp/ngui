@@ -1,16 +1,16 @@
 use "core/source_map.npk".*;
 use "core/ast.npk".*;
-use "memory/handle.npk".*;
+use "handle.npk".*;
 use "memory/green_arena.npk".*;
 use "engine/context.npk".*;
 use "lexer/regex/mem_primitives.npk".*;
 
-use "../core/ngui_arena.npk".*;
+// use "../core/ngui_arena.npk".*;
 use "../core/widget.npk".*;
 use "style_cascader.npk".*;
 
 
-use "generated_parser.npk".{xml_parse_start};
+use "generated_parser.npk".{parse_start};
 pub fixed int32:AST_ELEMENT = 100i32;
 pub fixed int32:AST_ATTRIBUTE = 101i32;
 pub fixed int32:T_IDENTIFIER = 6i32;
@@ -21,15 +21,18 @@ extern "libc" {
     func:puts = int32(string:s);
 }
 
-pub func:ast_to_widget = Widget->(wild RedNode->:node, StrView:src, wild GreenArena->:arena, Arena->:widget_arena, wild RedNode->:css_ast, wild GreenArena->:css_arena, string:css_source) {
+pub func:ast_to_widget = Handle<Widget>(wild RedNode->:node, StrView:src, wild GreenArena->:arena, int64:widget_arena, wild RedNode->:css_ast, wild GreenArena->:css_arena, string:css_source) {
     if (node == cast_unchecked<RedNode->>(0i64)) {
-        pass(cast_unchecked<Widget->>(0i64));
+        pass(cast_unchecked<Handle<Widget>>(0i64));
     }
     
     int32:kind = node->kind;
     drop println(`AST Node Kind in ast_to_widget: &{kind}`);
     if (kind == AST_ELEMENT) {
-        wild Widget->:w = raw widget_create();
+        int64:hw = npk_handle_alloc(widget_arena, 256i64);
+        Handle<Widget>:my_h = cast_unchecked<Handle<Widget>>(hw);
+        Widget->:w = cast_unchecked<Widget->>(npk_handle_deref(hw));
+        raw widget_init(w);
         
         // Populate tag_name from XML markup if it exists (first child is usually the tag name token)
         wild int8->:buf = cast_unchecked<int8->>(alloc(src.length + 1i64));
@@ -80,10 +83,9 @@ pub func:ast_to_widget = Widget->(wild RedNode->:node, StrView:src, wild GreenAr
         wild RedNode->:child = node->first_child;
         while (child != cast_unchecked<RedNode->>(0i64)) {
             if (child->kind == AST_ELEMENT) {
-                wild Widget->:child_w = raw ast_to_widget(child, src, arena, widget_arena, css_ast, css_arena, css_source);
-                if (child_w != cast_unchecked<Widget->>(0i64)) {
-                    MyHandle:h = raw ngui_arena_alloc(widget_arena, cast_unchecked<any->>(child_w));
-                    drop widget_add_child(w, h);
+                Handle<Widget>:child_h = raw ast_to_widget(child, src, arena, widget_arena, css_ast, css_arena, css_source);
+                if (cast_unchecked<int64>(child_h) != 0i64) {
+                    drop widget_add_child(w, child_h);
                 }
             }
             child = child->next_sibling;
@@ -92,13 +94,13 @@ pub func:ast_to_widget = Widget->(wild RedNode->:node, StrView:src, wild GreenAr
             drop raw ngui_style_apply(w, css_ast, css_arena, css_source);
         }
 
-        pass(w);
+        pass(my_h);
     }
     
-    pass(cast_unchecked<Widget->>(0i64));
+    pass(cast_unchecked<Handle<Widget>>(0i64));
 };
 
-pub func:ngui_parse_markup = Widget->(string:source, Arena->:widget_arena, CompactHandle<GreenNode>:stylesheet_ast, wild GreenArena->:css_arena, string:css_source) {
+pub func:ngui_parse_markup = Handle<Widget>(string:source, int64:widget_arena, CompactHandle<GreenNode>:stylesheet_ast, wild GreenArena->:css_arena, string:css_source) {
     StrView:src;
     int64:cstr = string_to_cstr(source);
     src.data = cast_unchecked<int8->>(cstr);
@@ -106,7 +108,7 @@ pub func:ngui_parse_markup = Widget->(string:source, Arena->:widget_arena, Compa
 
     wild GreenArena->:arena = raw npk_arena_create(4096i64);
     
-    CompactHandle<GreenNode>:real_res = raw xml_parse_start(src, arena);
+    CompactHandle<GreenNode>:real_res = raw parse_start(src, arena);
     
     ScopedSemanticPass:spass = raw scoped_pass_begin();
     wild ASTNode->:ast = raw npk_ast_from_green(spass.tlc, arena, real_res);
@@ -121,7 +123,7 @@ pub func:ngui_parse_markup = Widget->(string:source, Arena->:widget_arena, Compa
         }
     }
 
-    wild Widget->:root_widget = cast_unchecked<Widget->>(0i64);
+    Handle<Widget>:root_widget = cast_unchecked<Handle<Widget>>(0i64);
 
     wild RedNode->:css_red = cast_unchecked<RedNode->>(0i64);
     if (css_ast_node != cast_unchecked<ASTNode->>(0i64)) {
